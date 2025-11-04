@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 use Leopoletto\RobotsTxtParser\Records\Comment;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
 use Leopoletto\RobotsTxtParser\Records\MetaDirective;
+use Leopoletto\RobotsTxtParser\Records\RobotsCustomCollection;
 use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
 use Leopoletto\RobotsTxtParser\Records\Sitemap;
 use Leopoletto\RobotsTxtParser\Records\UserAgent;
@@ -20,6 +21,7 @@ class RobotsTxtParser
 
     private Client $httpClient;
     private string $userAgent = 'Mozilla/5.0 (compatible; RobotsTxtParser/1.0; https://github.com/leopoletto/robots-txt-parser)';
+    private ?UserAgent $currentUserAgent = null;
     private ?string $botName = null;
     private ?string $botVersion = null;
     private ?string $botUrl = null;
@@ -77,7 +79,7 @@ class RobotsTxtParser
         $robotsUrl = $this->normalizeRobotsUrl($url);
         
         $size = 0;
-        $records = new Collection();
+        $records = RobotsCustomCollection::build([]);
         $userAgent = $this->getUserAgent();
 
         // Step 1: Request the given URL to get X-Robots-Tag headers and meta tags
@@ -140,7 +142,7 @@ class RobotsTxtParser
             }
 
         } catch (RequestException $e) {
-            // Continue even if page request fails
+
         }
 
         // Step 2: Download robots.txt (regardless of whether page request succeeded)
@@ -397,15 +399,10 @@ class RobotsTxtParser
      */
     private function normalizeRobotsUrl(string $url): string
     {
-        $url = rtrim($url, '/');
-        
-        // If URL already ends with robots.txt, return as is
-        if (str_ends_with(strtolower($url), '/robots.txt')) {
-            return $url;
-        }
-
-        // Otherwise, append /robots.txt
-        return $url . '/robots.txt';
+        $host = parse_url($url,PHP_URL_HOST) . '/robots.txt';
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        $robotsUrl = $scheme . '://' . $host;
+        return $robotsUrl;
     }
 
     /**
@@ -414,7 +411,7 @@ class RobotsTxtParser
     private function isComment(string $line): bool
     {
         $trimmed = trim($line);
-        return str_starts_with($trimmed, '#') && !str_contains($trimmed, '#', 1);
+        return str_starts_with($trimmed, '#');
     }
 
     /**
@@ -478,7 +475,10 @@ class RobotsTxtParser
             return null;
         }
 
-        return new UserAgent($lineNumber, $userAgent);
+        $userAgentRecord = new UserAgent($lineNumber, $userAgent);
+        $this->currentUserAgent = $userAgentRecord;
+
+        return $userAgentRecord;
     }
 
     /**
@@ -499,23 +499,27 @@ class RobotsTxtParser
     {
         $trimmed = trim($line);
         $lowerTrimmed = strtolower($trimmed);
-        
+
+        if ($this->currentUserAgent === null) {
+            throw new \RuntimeException('Directive line cannot be parsed without a current user agent');
+        }
+
         if (str_starts_with($lowerTrimmed, 'allow:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, 'allow', $path);
+            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'allow', $path);
         }
 
         if (str_starts_with($lowerTrimmed, 'disallow:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, 'disallow', $path);
+            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'disallow', $path);
         }
 
         if (str_starts_with($lowerTrimmed, 'crawl-delay:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, 'crawl-delay', $path);
+            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'crawl-delay', $path);
         }
 
         return null;
@@ -535,15 +539,15 @@ class RobotsTxtParser
             // Split by comma if multiple directives in one header
             $parts = array_map('trim', explode(',', $tag));
             
-            foreach ($parts as $part) {
+            foreach ($parts as $index => $part) {
                 // Check if it has user agent prefix (e.g., "googlebot: noindex")
                 if (strpos($part, ':') !== false) {
                     $directiveParts = explode(':', $part, 2);
                     if (count($directiveParts) === 2) {
-                        $directives[] = trim($directiveParts[1]);
+                        $directives["X-Robots-Tag"][$directiveParts[0]] = trim($directiveParts[1]);
                     }
                 } else {
-                    $directives[] = $part;
+                    $directives["X-Robots-Tag"][$index] = $part;
                 }
             }
         }

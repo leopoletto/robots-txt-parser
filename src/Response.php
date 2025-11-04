@@ -3,6 +3,7 @@
 namespace Leopoletto\RobotsTxtParser;
 
 use Illuminate\Support\Collection;
+use Leopoletto\RobotsTxtParser\Records\RobotsCustomCollection;
 
 class Response
 {
@@ -11,9 +12,10 @@ class Response
      * @param int $size
      */
     public function __construct(
-        private readonly Collection $records,
+        private readonly RobotsCustomCollection $records,
         private readonly int $size
-    ) {}
+    ) {
+    }
 
     /**
      * Get the size of the parsed content in bytes
@@ -24,25 +26,13 @@ class Response
     }
 
     /**
-     * Get all records as a Laravel Collection
+     * Get all records as a RobotsCustomCollection
      * 
-     * @return Collection
+     * @return RobotsCustomCollection
      */
-    public function records(): Collection
+    public function records(): RobotsCustomCollection
     {
         return $this->records;
-    }
-
-    /**
-     * Get all comment records as a Laravel Collection
-     * 
-     * @return Collection
-     */
-    public function comments(): Collection
-    {
-        return $this->records->filter(function ($record) {
-            return $record instanceof \Leopoletto\RobotsTxtParser\Records\Comment;
-        });
     }
 }
 
