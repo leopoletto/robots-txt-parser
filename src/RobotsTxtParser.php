@@ -4,27 +4,35 @@ namespace Leopoletto\RobotsTxtParser;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use Illuminate\Support\Collection;
+use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
 use Leopoletto\RobotsTxtParser\Records\Comment;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
 use Leopoletto\RobotsTxtParser\Records\MetaDirective;
-use Leopoletto\RobotsTxtParser\Records\RobotsCustomCollection;
 use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
 use Leopoletto\RobotsTxtParser\Records\Sitemap;
 use Leopoletto\RobotsTxtParser\Records\UserAgent;
+use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
+use RuntimeException;
 
 class RobotsTxtParser
 {
     private const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
     private const MAX_REDIRECTS = 5;
     private const MAX_HTML_SIZE = 5 * 1024 * 1024; // 5MB for HTML (meta tags are in head)
+    private const DEFAULT_TIMEOUT = 10;
+    private const TIMEOUT_URL = 10;
+    private const TIMEOUT_ROBOTS_URL = 10;
+    private const CHUNK_SIZE = 8192; // 8KB
 
     private Client $httpClient;
-    private string $userAgent = 'Mozilla/5.0 (compatible; RobotsTxtParser/1.0; https://github.com/leopoletto/robots-txt-parser)';
-    private ?UserAgent $currentUserAgent = null;
-    private ?string $botName = null;
-    private ?string $botVersion = null;
-    private ?string $botUrl = null;
+    
+    /**
+     * Anatomy: Mozilla/5.0 (compatible; Bot Name/Version; Url)
+     * Example: Mozilla/5.0 (compatible; RobotsTxtParser/1.0; https://github.com/leopoletto/robots-txt-parser)
+     *
+     * @var string
+     */
+    private string $userAgent = '';
 
     public function __construct(?Client $httpClient = null)
     {
@@ -36,7 +44,7 @@ class RobotsTxtParser
                 'protocols' => ['http', 'https'],
                 'track_redirects' => true
             ],
-            'timeout' => 30,
+            'timeout' => self::DEFAULT_TIMEOUT,
             'http_errors' => false,
         ]);
     }
@@ -55,9 +63,6 @@ class RobotsTxtParser
      */
     public function configureUserAgent(string $bot, string $version, string $url): void
     {
-        $this->botName = $bot;
-        $this->botVersion = $version;
-        $this->botUrl = $url;
         $this->userAgent = "Mozilla/5.0 (compatible; {$bot}/{$version}; {$url})";
     }
 
@@ -66,6 +71,9 @@ class RobotsTxtParser
      */
     private function getUserAgent(): string
     {
+        if(strlen($this->userAgent) === 0){
+            throw new RuntimeException('Bot Signature Undefined, Use `configureUserAgent` method to configure.');
+        }
         return $this->userAgent;
     }
 
@@ -79,72 +87,74 @@ class RobotsTxtParser
         $robotsUrl = $this->normalizeRobotsUrl($url);
         
         $size = 0;
-        $records = RobotsCustomCollection::build([]);
+        $records = RobotsCollection::build();
         $userAgent = $this->getUserAgent();
+        $fetchFromURLIfNotRobotsTxt = !str_ends_with($url, 'robots.txt');
 
         // Step 1: Request the given URL to get X-Robots-Tag headers and meta tags
-        try {
-            $pageResponse = $this->httpClient->get($url, [
-                'headers' => [
-                    'User-Agent' => $userAgent,
-                ],
-                'timeout' => 10,
-            ]);
+        if ($fetchFromURLIfNotRobotsTxt) {
+            try {
+                $pageResponse = $this->httpClient->get($url, [
+                    'headers' => [
+                        'User-Agent' => $userAgent,
+                    ],
+                    'timeout' => self::TIMEOUT_URL,
+                ]);
 
-            $statusCode = $pageResponse->getStatusCode();
-            
-            // Get X-Robots-Tag headers from the page response
-            $xRobotsTags = $pageResponse->getHeader('X-Robots-Tag');
-            if (!empty($xRobotsTags)) {
-                $headerDirectives = $this->parseXRobotsTagHeaders($xRobotsTags);
-                if (!empty($headerDirectives)) {
-                    $records->push(new HeaderDirective($headerDirectives));
-                }
-            }
+                $statusCode = $pageResponse->getStatusCode();
 
-            // Get meta tags from HTML (stream read with limit)
-            if ($statusCode === 200) {
-                $body = $pageResponse->getBody();
-                $html = '';
-                $htmlSize = 0;
-                
-                // Only read first part of HTML (meta tags are in <head>, usually first 100KB)
-                // But we'll read up to 5MB to be safe
-                while (!$body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
-                    $chunk = $body->read(8192);
-                    
-                    // Break if we get an empty chunk (no more data)
-                    if ($chunk === '' || $chunk === false) {
-                        break;
+                // Get X-Robots-Tag headers from the page response
+                $xRobotsTags = $pageResponse->getHeader('X-Robots-Tag');
+                if (!empty($xRobotsTags)) {
+                    $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
+                    if (!empty($headerDirectives)) {
+                        $records->push(new HeaderDirective($headerDirectives));
                     }
-                    
-                    $html .= $chunk;
-                    $htmlSize += strlen($chunk);
                 }
-                
-                // Ensure stream is closed
-                try {
-                    $body->close();
-                } catch (\Exception $e) {
-                    // Ignore close errors
+
+                // Get meta tags from HTML (stream read with limit)
+                if ($statusCode === 200) {
+                    $body = $pageResponse->getBody();
+                    $html = '';
+                    $htmlSize = 0;
+
+                    // Only read first part of HTML (meta tags are in <head>, usually first 100KB)
+                    // But limit to 5MB to be safe
+                    while (!$body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
+                        $chunk = $body->read(self::CHUNK_SIZE);
+
+                        // Break if we get an empty chunk (no more data)
+                        if ($chunk === '' || $chunk === false) {
+                            break;
+                        }
+
+                        $html .= $chunk;
+                        $htmlSize += strlen($chunk);
+                    }
+
+                    // Ensure stream is closed
+                    try {
+                        $body->close();
+                    } catch (\Exception $e) {
+                        // Ignore close errors
+                    }
+
+                    $metaDirectives = MetaDirective::parseMetaTags($html);
+                    if (!empty($metaDirectives)) {
+                        $records->push(new MetaDirective($metaDirectives));
+                    }
+
+                    // Only count actual size we read
+                    $size += $htmlSize;
+
+                    // Free memory
+                    unset($html, $body);
                 }
-                
-                $metaDirectives = $this->parseMetaTags($html);
-                if (!empty($metaDirectives)) {
-                    $records->push(new MetaDirective($metaDirectives));
-                }
-                
-                // Only count actual size we read
-                $size += $htmlSize;
-                
-                // Free memory
-                unset($html, $body);
+            } catch (RequestException $e) {
+                // Continue even if page request fails - we still have robots.txt to parse
             }
-
-        } catch (RequestException $e) {
-
         }
-
+        
         // Step 2: Download robots.txt (regardless of whether page request succeeded)
         try {
             $robotsResponse = $this->httpClient->get($robotsUrl, [
@@ -152,12 +162,13 @@ class RobotsTxtParser
                     'User-Agent' => $userAgent,
                 ],
                 'stream' => true,
+                'timeout' => self::TIMEOUT_ROBOTS_URL
             ]);
 
             // Get X-Robots-Tag headers from robots.txt response (if any)
             $xRobotsTags = $robotsResponse->getHeader('X-Robots-Tag');
             if (!empty($xRobotsTags)) {
-                $headerDirectives = $this->parseXRobotsTagHeaders($xRobotsTags);
+                $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
                 if (!empty($headerDirectives)) {
                     $records->push(new HeaderDirective($headerDirectives));
                 }
@@ -171,7 +182,7 @@ class RobotsTxtParser
             $currentUserAgent = null;
 
             while (!$body->eof()) {
-                $chunk = $body->read(8192); // Read in 8KB chunks
+                $chunk = $body->read(self::CHUNK_SIZE); // Read in 8KB chunks
                 
                 // Break if we get an empty chunk and buffer is empty (stream ended)
                 if (($chunk === '' || $chunk === false) && $buffer === '') {
@@ -213,7 +224,7 @@ class RobotsTxtParser
                     $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
                     if ($parsed !== null) {
                         if ($parsed instanceof UserAgent) {
-                            $currentUserAgent = $parsed->userAgent;
+                            $currentUserAgent = $parsed;
                         }
                         $records->push($parsed);
                     }
@@ -227,6 +238,9 @@ class RobotsTxtParser
                 if (trim($line) !== '') {
                     $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
                     if ($parsed !== null) {
+                        if ($parsed instanceof UserAgent) {
+                            $currentUserAgent = $parsed;
+                        }
                         $records->push($parsed);
                     }
                 }
@@ -245,9 +259,9 @@ class RobotsTxtParser
             unset($buffer, $body);
 
         } catch (RequestException $e) {
-            // Continue even if robots.txt download fails
+            // Continue even if robots.txt download fails - return whatever we collected
         } catch (\RuntimeException $e) {
-            // Re-throw size limit exceptions
+            // Re-throw size limit exceptions and other critical errors
             throw $e;
         }
 
@@ -278,7 +292,7 @@ class RobotsTxtParser
             throw new \RuntimeException("Could not open file: {$filePath}");
         }
 
-        $records = new Collection();
+        $records = RobotsCollection::build();
         $lineNumber = 0;
         $currentUserAgent = null;
 
@@ -295,7 +309,7 @@ class RobotsTxtParser
             $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
-                    $currentUserAgent = $parsed->userAgent;
+                    $currentUserAgent = $parsed;
                 }
                 $records->push($parsed);
             }
@@ -316,7 +330,7 @@ class RobotsTxtParser
             throw new \RuntimeException('Content size exceeds 500MB limit');
         }
 
-        $records = new Collection();
+        $records = RobotsCollection::build();
         $lineNumber = 0;
         $currentUserAgent = null;
         
@@ -345,7 +359,7 @@ class RobotsTxtParser
             $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
-                    $currentUserAgent = $parsed->userAgent;
+                    $currentUserAgent = $parsed;
                 }
                 $records->push($parsed);
             }
@@ -362,33 +376,28 @@ class RobotsTxtParser
      * @param string $line
      * @param int $lineNumber
      * @param string|null $currentUserAgent Reference to current user agent (may be updated)
-     * @return Comment|Sitemap|UserAgent|RobotsDirective|null
+     * @return RobotsLineInterface|null
      */
-    private function parseLine(string $line, int $lineNumber, ?string &$currentUserAgent): Comment|Sitemap|UserAgent|RobotsDirective|null
+    private function parseLine(string $line, int $lineNumber, ?UserAgent &$currentUserAgent): ?RobotsLineInterface
     {
         // Parse comment
-        if ($this->isComment($line)) {
-            return $this->parseComment($line, $lineNumber);
+        if (Comment::isComment($line)) {
+            return Comment::parse($line, $lineNumber);
         }
 
         // Parse sitemap
-        if ($this->isSitemap($line)) {
-            return $this->parseSitemap($line, $lineNumber);
+        if (Sitemap::isSitemap($line)) {
+            return Sitemap::parse($line, $lineNumber);
         }
 
         // Parse user agent
-        if ($this->isUserAgent($line)) {
-            $userAgent = $this->parseUserAgent($line, $lineNumber);
-            if ($userAgent) {
-                $currentUserAgent = $userAgent->userAgent;
-                return $userAgent;
-            }
-            return null;
+        if (UserAgent::isUserAgent($line)) {
+            return UserAgent::parse($line, $lineNumber);
         }
 
         // Parse directive (must follow a user agent)
-        if ($currentUserAgent !== null && $this->isDirective($line)) {
-            return $this->parseDirective($line, $lineNumber);
+        if (RobotsDirective::isDirective($line) && $currentUserAgent instanceof UserAgent) {
+            return RobotsDirective::parse($line, $lineNumber, $currentUserAgent);
         }
 
         return null;
@@ -403,192 +412,6 @@ class RobotsTxtParser
         $scheme = parse_url($url, PHP_URL_SCHEME);
         $robotsUrl = $scheme . '://' . $host;
         return $robotsUrl;
-    }
-
-    /**
-     * Check if line is a comment
-     */
-    private function isComment(string $line): bool
-    {
-        $trimmed = trim($line);
-        return str_starts_with($trimmed, '#');
-    }
-
-    /**
-     * Parse comment line
-     */
-    private function parseComment(string $line, int $lineNumber): ?Comment
-    {
-        $trimmed = trim($line);
-        if (strlen($trimmed) < 2) {
-            return null;
-        }
-
-        $comment = substr($trimmed, 1); // Remove the #
-        return new Comment($lineNumber, trim($comment));
-    }
-
-    /**
-     * Check if line is a sitemap
-     */
-    private function isSitemap(string $line): bool
-    {
-        return str_starts_with(strtolower(trim($line)), 'sitemap:');
-    }
-
-    /**
-     * Parse sitemap line
-     */
-    private function parseSitemap(string $line, int $lineNumber): ?Sitemap
-    {
-        $parts = explode(':', $line, 2);
-        if (count($parts) !== 2) {
-            return null;
-        }
-
-        $url = trim($parts[1]);
-        $valid = filter_var($url, FILTER_VALIDATE_URL) !== false && str_ends_with(strtolower($url), '.xml');
-
-        return new Sitemap($lineNumber, $url, $valid);
-    }
-
-    /**
-     * Check if line is a user agent
-     */
-    private function isUserAgent(string $line): bool
-    {
-        return str_starts_with(strtolower(trim($line)), 'user-agent:');
-    }
-
-    /**
-     * Parse user agent line
-     */
-    private function parseUserAgent(string $line, int $lineNumber): ?UserAgent
-    {
-        $parts = explode(':', $line, 2);
-        if (count($parts) !== 2) {
-            return null;
-        }
-
-        $userAgent = trim($parts[1]);
-        if ($userAgent === '') {
-            return null;
-        }
-
-        $userAgentRecord = new UserAgent($lineNumber, $userAgent);
-        $this->currentUserAgent = $userAgentRecord;
-
-        return $userAgentRecord;
-    }
-
-    /**
-     * Check if line is a directive
-     */
-    private function isDirective(string $line): bool
-    {
-        $trimmed = strtolower(trim($line));
-        return str_starts_with($trimmed, 'allow:') 
-            || str_starts_with($trimmed, 'disallow:') 
-            || str_starts_with($trimmed, 'crawl-delay:');
-    }
-
-    /**
-     * Parse directive line
-     */
-    private function parseDirective(string $line, int $lineNumber): ?RobotsDirective
-    {
-        $trimmed = trim($line);
-        $lowerTrimmed = strtolower($trimmed);
-
-        if ($this->currentUserAgent === null) {
-            throw new \RuntimeException('Directive line cannot be parsed without a current user agent');
-        }
-
-        if (str_starts_with($lowerTrimmed, 'allow:')) {
-            $parts = explode(':', $trimmed, 2);
-            $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'allow', $path);
-        }
-
-        if (str_starts_with($lowerTrimmed, 'disallow:')) {
-            $parts = explode(':', $trimmed, 2);
-            $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'disallow', $path);
-        }
-
-        if (str_starts_with($lowerTrimmed, 'crawl-delay:')) {
-            $parts = explode(':', $trimmed, 2);
-            $path = count($parts) === 2 ? trim($parts[1]) : '';
-            return new RobotsDirective($lineNumber, $this->currentUserAgent, 'crawl-delay', $path);
-        }
-
-        return null;
-    }
-
-    /**
-     * Parse X-Robots-Tag HTTP headers
-     * 
-     * @param array<string> $xRobotsTags
-     * @return array<string>
-     */
-    private function parseXRobotsTagHeaders(array $xRobotsTags): array
-    {
-        $directives = [];
-
-        foreach ($xRobotsTags as $tag) {
-            // Split by comma if multiple directives in one header
-            $parts = array_map('trim', explode(',', $tag));
-            
-            foreach ($parts as $index => $part) {
-                // Check if it has user agent prefix (e.g., "googlebot: noindex")
-                if (strpos($part, ':') !== false) {
-                    $directiveParts = explode(':', $part, 2);
-                    if (count($directiveParts) === 2) {
-                        $directives["X-Robots-Tag"][$directiveParts[0]] = trim($directiveParts[1]);
-                    }
-                } else {
-                    $directives["X-Robots-Tag"][$index] = $part;
-                }
-            }
-        }
-
-        return array_unique($directives);
-    }
-
-    /**
-     * Parse robots meta tags from HTML
-     * Supports both attribute orders and self-closing tags
-     * 
-     * @return array<string>
-     */
-    private function parseMetaTags(string $html): array
-    {
-        $directives = [];
-
-        // Match <meta name="robots|googlebot|googlebot-news" content="..."> or <meta content="..." name="...">
-        // Handles both attribute orders and self-closing tags
-        $pattern = '/<meta\s+(?:name=["\'](robots|googlebot|googlebot-news)["\']\s+content=["\']([^"\']+)["\']|content=["\']([^"\']+)["\']\s+name=["\'](robots|googlebot|googlebot-news)["\'])\s*\/?>/i';
-        
-        if (preg_match_all($pattern, $html, $matches, PREG_SET_ORDER)) {
-            foreach ($matches as $match) {
-                // Check which attribute order was matched
-                if (!empty($match[2])) {
-                    // name first, content second
-                    $content = trim($match[2]);
-                } elseif (!empty($match[3])) {
-                    // content first, name second
-                    $content = trim($match[3]);
-                } else {
-                    continue;
-                }
-
-                // Split by comma if multiple directives
-                $parts = array_map('trim', explode(',', $content));
-                $directives = array_merge($directives, $parts);
-            }
-        }
-
-        return array_unique($directives);
     }
 }
 

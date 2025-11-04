@@ -2,17 +2,16 @@
 
 namespace Leopoletto\RobotsTxtParser;
 
-use Illuminate\Support\Collection;
-use Leopoletto\RobotsTxtParser\Records\RobotsCustomCollection;
+use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
 
 class Response
 {
     /**
-     * @param Collection $records
+     * @param RobotsCollection $records
      * @param int $size
      */
     public function __construct(
-        private readonly RobotsCustomCollection $records,
+        private readonly RobotsCollection $records,
         private readonly int $size
     ) {
     }
@@ -26,11 +25,11 @@ class Response
     }
 
     /**
-     * Get all records as a RobotsCustomCollection
+     * Get all records as a RobotsCollection
      * 
-     * @return RobotsCustomCollection
+     * @return RobotsCollection
      */
-    public function records(): RobotsCustomCollection
+    public function records(): RobotsCollection
     {
         return $this->records;
     }
