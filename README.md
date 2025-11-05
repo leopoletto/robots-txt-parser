@@ -14,13 +14,64 @@ composer require leopoletto/robots-txt-parser
 use Leopoletto\RobotsTxtParser\RobotsTxtParser;
 
 $parser = new RobotsTxtParser();
+$robots->configureUserAgent('RobotsTxtParser', 1.0, 'https://github.com/leopoletto/robots-txt-parser');
 
 // Parse from URL
 $response = $parser->parseUrl('https://example.com');
 
-// Get file size
-$response->size();
+return response()->json([
+    'size' => $response->size(),
+    'lines' => $response->records()->lines(),
+    'comments' => $response->records()->comments()->toArray(),
+    'html' => $response->records()->metaTagsDirectives()->toArray(),
+    'headers' => $response->records()->headersDirectives()->toArray(),
+]);
+```
 
+Response
+
+```JSON
+{
+    "size": 249403,
+    "lines": 4440,
+    "comments": [
+        {
+            "line": 1,
+            "comment": "Notice: The use of robots or other automated means to access LinkedIn without"
+        },
+        {
+            "line": 2,
+            "comment": "the express permission of LinkedIn is strictly prohibited."
+        },
+        {
+            "line": 3,
+            "comment": "See https://www.linkedin.com/legal/user-agreement."
+        },
+        {
+            "line": 4,
+            "comment": "LinkedIn may, in its discretion, permit certain automated access to certain LinkedIn pages,"
+        }
+    ],
+    "html": [
+        [
+            "index",
+            "follow",
+            "max-image-preview:large",
+            "max-snippet:-1",
+            "max-video-preview:-1"
+        ]
+    ],
+    "headers": [
+        {
+            "X-Robots-Tag": [
+                "all"
+            ]
+        }
+    ],
+}
+```
+
+```php
 // Get all records
 $response->records();
 

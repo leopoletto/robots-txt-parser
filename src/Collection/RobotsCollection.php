@@ -81,10 +81,10 @@ class RobotsCollection extends Collection
                     $response['userAgent'] = $item->userAgent->userAgent;
                 }
 
-                $this->displayUserAgent = false;
-
                 return $response;
         })->values();
+
+        $this->displayUserAgent(false);
     }
 
 
@@ -109,11 +109,11 @@ class RobotsCollection extends Collection
                     $response['userAgent'] = $item->userAgent->userAgent;
                 }
 
-                $this->displayUserAgent = false;
-
                 return $response;
             })
             ->values();
+
+        $this->displayUserAgent(false);
     }
 
     public function crawlDelay(?string $userAgent = null): RobotsCollection
@@ -130,18 +130,18 @@ class RobotsCollection extends Collection
                 $response = [
                     'line' => $item->line,
                     'directive' => $item->directive,
-                    'path' => $item->path
+                    'delay' => (int) $item->path
                 ];
 
                 if ($this->displayUserAgent) {
                     $response['userAgent'] = $item->userAgent->userAgent;
                 }
 
-                $this->displayUserAgent = false;
-
                 return $response;
             })
             ->values();
+
+        $this->displayUserAgent(false);
     }
 
     public function robotsTxtDirectives(): RobotsCollection
@@ -158,12 +158,12 @@ class RobotsCollection extends Collection
                 if ($this->displayUserAgent) {
                     $response['userAgent'] = $item->userAgent->userAgent;
                 }
-
-                $this->displayUserAgent = false;
-
+                
                 return $response;
             })
             ->values();
+
+        $this->displayUserAgent(false);
     }
 
     public function displayUserAgent(bool $displayUserAgent = true): self

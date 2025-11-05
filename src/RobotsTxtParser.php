@@ -19,10 +19,10 @@ class RobotsTxtParser
     private const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
     private const MAX_REDIRECTS = 5;
     private const MAX_HTML_SIZE = 5 * 1024 * 1024; // 5MB for HTML (meta tags are in head)
-    private const DEFAULT_TIMEOUT = 10;
+    private const DEFAULT_TIMEOUT = 30;
     private const TIMEOUT_URL = 10;
     private const TIMEOUT_ROBOTS_URL = 10;
-    private const CHUNK_SIZE = 8192; // 8KB
+    private const CHUNK_SIZE = 8 * 1024; // 8KB
 
     private Client $httpClient;
     
@@ -345,15 +345,30 @@ class RobotsTxtParser
         
         // Free original content immediately
         unset($content);
-        
+
+        $lines = [];
+        $firstLine = null;
         while (($line = fgets($handle)) !== false) {
-            $lineNumber++;
+            if ($firstLine !== null &&  str_ends_with($line, $firstLine)) {
+                continue;
+            }
+            if ($firstLine === null) {
+                $firstLine = $line;
+            }
+            
             $line = rtrim($line, "\r\n");
 
             // Skip empty lines
             if (trim($line) === '') {
                 continue;
             }
+
+            $line = strtolower(trim($line));
+            if (in_array($line, $lines)) {
+                continue;
+            }
+            $lineNumber++;
+            $lines[] = $line;
 
             // Parse the line
             $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
