@@ -4,6 +4,7 @@ namespace Leopoletto\RobotsTxtParser;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\RequestOptions;
 use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
 use Leopoletto\RobotsTxtParser\Records\Comment;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
@@ -12,6 +13,7 @@ use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
 use Leopoletto\RobotsTxtParser\Records\Sitemap;
 use Leopoletto\RobotsTxtParser\Records\UserAgent;
 use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
+use Leopoletto\RobotsTxtParser\Records\SyntaxError;
 use RuntimeException;
 
 class RobotsTxtParser
@@ -23,6 +25,9 @@ class RobotsTxtParser
     private const TIMEOUT_URL = 10;
     private const TIMEOUT_ROBOTS_URL = 10;
     private const CHUNK_SIZE = 8 * 1024; // 8KB
+    /** @var array<UserAgent> */
+    private array $currentUserAgents = [];
+    public ?RobotsDirective $currentDirective = null;
 
     private Client $httpClient;
     
@@ -89,16 +94,20 @@ class RobotsTxtParser
         $size = 0;
         $records = RobotsCollection::build();
         $userAgent = $this->getUserAgent();
-        $fetchFromURLIfNotRobotsTxt = !str_ends_with($url, 'robots.txt');
+        $isNotRobotsTxt = !str_ends_with($url, 'robots.txt');
+        
+        // Reset parser state
+        $this->currentUserAgents = [];
+        $this->currentDirective = null;
 
         // Step 1: Request the given URL to get X-Robots-Tag headers and meta tags
-        if ($fetchFromURLIfNotRobotsTxt) {
+        if ($isNotRobotsTxt) {
             try {
                 $pageResponse = $this->httpClient->get($url, [
-                    'headers' => [
+                    RequestOptions::HEADERS => [
                         'User-Agent' => $userAgent,
                     ],
-                    'timeout' => self::TIMEOUT_URL,
+                    RequestOptions::TIMEOUT => self::TIMEOUT_URL
                 ]);
 
                 $statusCode = $pageResponse->getStatusCode();
@@ -158,12 +167,26 @@ class RobotsTxtParser
         // Step 2: Download robots.txt (regardless of whether page request succeeded)
         try {
             $robotsResponse = $this->httpClient->get($robotsUrl, [
-                'headers' => [
+                RequestOptions::HEADERS => [
                     'User-Agent' => $userAgent,
                 ],
-                'stream' => true,
-                'timeout' => self::TIMEOUT_ROBOTS_URL
+                RequestOptions::STREAM => true,
+                RequestOptions::TIMEOUT => self::TIMEOUT_ROBOTS_URL,
+                RequestOptions::ALLOW_REDIRECTS => [
+                    'max' => self::MAX_REDIRECTS,
+                    'strict' => true,
+                    'referer' => true,
+                    'track_redirects' => true,
+                ]
             ]);
+
+            if ($robotsResponse->getHeader('X-Guzzle-Redirect-History')) { 
+                $redirectHistory = $robotsResponse->getHeader('X-Guzzle-Redirect-History');
+                if(count($redirectHistory) >= self::MAX_REDIRECTS) {
+                    $records->push(new SyntaxError(0, 'Redirect chain exceeds ' . self::MAX_REDIRECTS . ' redirects limit'));
+                    return new Response($records, $size);
+                }
+            }
 
             // Get X-Robots-Tag headers from robots.txt response (if any)
             $xRobotsTags = $robotsResponse->getHeader('X-Robots-Tag');
@@ -179,7 +202,6 @@ class RobotsTxtParser
             $contentSize = 0;
             $buffer = '';
             $lineNumber = 0;
-            $currentUserAgent = null;
 
             while (!$body->eof()) {
                 $chunk = $body->read(self::CHUNK_SIZE); // Read in 8KB chunks
@@ -221,12 +243,25 @@ class RobotsTxtParser
                     }
 
                     // Parse the line and add to records
-                    $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
+                    $parsed = $this->parseLine($line, $lineNumber);
                     if ($parsed !== null) {
                         if ($parsed instanceof UserAgent) {
-                            $currentUserAgent = $parsed;
+                            // Check if the last record was also a User-agent
+                            $lastRecord = $records->last();
+                            if ($lastRecord instanceof UserAgent) {
+                                // Consecutive User-agent lines - add to current group
+                                $this->currentUserAgents[] = $parsed;
+                            } else {
+                                // New User-agent group - reset array
+                                $this->currentUserAgents = [$parsed];
+                            }
+                            $records->push($parsed);
+                        } else {
+                            if ($parsed instanceof RobotsDirective) {
+                                $this->currentDirective = $parsed;
+                            }
+                            $records->push($parsed);
                         }
-                        $records->push($parsed);
                     }
                 }
             }
@@ -236,12 +271,25 @@ class RobotsTxtParser
                 $lineNumber++;
                 $line = rtrim($buffer, "\r\n");
                 if (trim($line) !== '') {
-                    $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
+                    $parsed = $this->parseLine($line, $lineNumber);
                     if ($parsed !== null) {
                         if ($parsed instanceof UserAgent) {
-                            $currentUserAgent = $parsed;
+                            // Check if the last record was also a User-agent
+                            $lastRecord = $records->last();
+                            if ($lastRecord instanceof UserAgent) {
+                                // Consecutive User-agent lines - add to current group
+                                $this->currentUserAgents[] = $parsed;
+                            } else {
+                                // New User-agent group - reset array
+                                $this->currentUserAgents = [$parsed];
+                            }
+                            $records->push($parsed);
+                        } else {
+                            if ($parsed instanceof RobotsDirective) {
+                                $this->currentDirective = $parsed;
+                            }
+                            $records->push($parsed);
                         }
-                        $records->push($parsed);
                     }
                 }
             }
@@ -273,6 +321,13 @@ class RobotsTxtParser
      */
     public function parseFile(string $filePath): Response
     {
+        $records = RobotsCollection::build();
+        $lineNumber = 0;
+        
+        // Reset parser state
+        $this->currentUserAgents = [];
+        $this->currentDirective = null;    
+
         if (!file_exists($filePath)) {
             throw new \RuntimeException("File not found: {$filePath}");
         }
@@ -283,7 +338,8 @@ class RobotsTxtParser
 
         $fileSize = filesize($filePath);
         if ($fileSize > self::MAX_FILE_SIZE) {
-            throw new \RuntimeException('File size exceeds 500MB limit');
+            $records->push(new SyntaxError(0, 'File size exceeds 500MB limit'));
+            return new Response($records, $fileSize);
         }
 
         // Read file line by line to save memory
@@ -292,9 +348,6 @@ class RobotsTxtParser
             throw new \RuntimeException("Could not open file: {$filePath}");
         }
 
-        $records = RobotsCollection::build();
-        $lineNumber = 0;
-        $currentUserAgent = null;
 
         while (($line = fgets($handle)) !== false) {
             $lineNumber++;
@@ -306,12 +359,25 @@ class RobotsTxtParser
             }
 
             // Parse the line
-            $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
+            $parsed = $this->parseLine($line, $lineNumber);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
-                    $currentUserAgent = $parsed;
+                    // Check if the last record was also a User-agent
+                    $lastRecord = $records->last();
+                    if ($lastRecord instanceof UserAgent) {
+                        // Consecutive User-agent lines - add to current group
+                        $this->currentUserAgents[] = $parsed;
+                    } else {
+                        // New User-agent group - reset array
+                        $this->currentUserAgents = [$parsed];
+                    }
+                    $records->push($parsed);
+                } else {
+                    if ($parsed instanceof RobotsDirective) {
+                        $this->currentDirective = $parsed;
+                    }
+                    $records->push($parsed);
                 }
-                $records->push($parsed);
             }
         }
 
@@ -326,13 +392,18 @@ class RobotsTxtParser
     public function parseText(string $content): Response
     {
         $size = strlen($content);
-        if ($size > self::MAX_FILE_SIZE) {
-            throw new \RuntimeException('Content size exceeds 500MB limit');
-        }
 
         $records = RobotsCollection::build();
         $lineNumber = 0;
-        $currentUserAgent = null;
+        
+        // Reset parser state
+        $this->currentUserAgents = [];
+        $this->currentDirective = null;
+
+        if ($size > self::MAX_FILE_SIZE) {
+            $records->push(new SyntaxError(0, 'Content size exceeds 500MB limit'));
+            return new Response($records, $size);
+        }
         
         // Use string stream for memory-efficient line-by-line processing
         $handle = fopen('php://memory', 'r+');
@@ -371,12 +442,25 @@ class RobotsTxtParser
             $lines[] = $line;
 
             // Parse the line
-            $parsed = $this->parseLine($line, $lineNumber, $currentUserAgent);
+            $parsed = $this->parseLine($line, $lineNumber);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
-                    $currentUserAgent = $parsed;
+                    // Check if the last record was also a User-agent
+                    $lastRecord = $records->last();
+                    if ($lastRecord instanceof UserAgent) {
+                        // Consecutive User-agent lines - add to current group
+                        $this->currentUserAgents[] = $parsed;
+                    } else {
+                        // New User-agent group - reset array
+                        $this->currentUserAgents = [$parsed];
+                    }
+                    $records->push($parsed);
+                } else {
+                    if ($parsed instanceof RobotsDirective) {
+                        $this->currentDirective = $parsed;
+                    }
+                    $records->push($parsed);
                 }
-                $records->push($parsed);
             }
         }
         
@@ -386,14 +470,13 @@ class RobotsTxtParser
     }
 
     /**
-     * Parse a single line and return the appropriate record object
+     * Parse a single line and return the appropriate record object(s)
      * 
      * @param string $line
      * @param int $lineNumber
-     * @param string|null $currentUserAgent Reference to current user agent (may be updated)
-     * @return RobotsLineInterface|null
+     * @return RobotsLineInterface|array<RobotsLineInterface>|null
      */
-    private function parseLine(string $line, int $lineNumber, ?UserAgent &$currentUserAgent): ?RobotsLineInterface
+    private function parseLine(string $line, int $lineNumber): RobotsLineInterface|array|null
     {
         // Parse comment
         if (Comment::isComment($line)) {
@@ -411,8 +494,14 @@ class RobotsTxtParser
         }
 
         // Parse directive (must follow a user agent)
-        if (RobotsDirective::isDirective($line) && $currentUserAgent instanceof UserAgent) {
-            return RobotsDirective::parse($line, $lineNumber, $currentUserAgent);
+        if (RobotsDirective::isDirective($line)) {
+            if(empty($this->currentUserAgents)) {
+                return new SyntaxError($lineNumber, 'Directive must follow a user agent');
+            }
+            
+            // Store directive only once with the first user agent in the group
+            // The collection will expand it on-demand when querying by user agent
+            return RobotsDirective::parse($line, $lineNumber, $this->currentUserAgents[0]);
         }
 
         return null;
