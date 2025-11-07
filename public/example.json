@@ -1,0 +1,714 @@
+{
+    "user_agents": {
+        "rogerbot": {
+            "line": 5,
+            "userAgent": "rogerbot",
+            "allow": [],
+            "disallow": [],
+            "crawlDelay": [
+                {
+                    "line": 6,
+                    "directive": "crawl-delay",
+                    "delay": 10
+                }
+            ]
+        },
+        "AhrefsBot": {
+            "line": 8,
+            "userAgent": "AhrefsBot",
+            "allow": [],
+            "disallow": [],
+            "crawlDelay": [
+                {
+                    "line": 9,
+                    "directive": "crawl-delay",
+                    "delay": 10
+                }
+            ]
+        },
+        "GPTBot": {
+            "line": 11,
+            "userAgent": "GPTBot",
+            "allow": [],
+            "disallow": [
+                {
+                    "line": 12,
+                    "directive": "disallow",
+                    "path": "/blog/"
+                },
+                {
+                    "line": 13,
+                    "directive": "disallow",
+                    "path": "/learn/seo/"
+                }
+            ],
+            "crawlDelay": []
+        },
+        "DDM-DCipher": {
+            "line": 15,
+            "userAgent": "DDM-DCipher",
+            "allow": [],
+            "disallow": [
+                {
+                    "line": 16,
+                    "directive": "disallow",
+                    "path": "/blog/"
+                },
+                {
+                    "line": 17,
+                    "directive": "disallow",
+                    "path": "/learn/seo/"
+                }
+            ],
+            "crawlDelay": []
+        },
+        "*": {
+            "line": 19,
+            "userAgent": "*",
+            "allow": [
+                {
+                    "line": 20,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/$"
+                },
+                {
+                    "line": 21,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/dotbot$"
+                },
+                {
+                    "line": 22,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/links$"
+                },
+                {
+                    "line": 23,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/just-discovered$"
+                },
+                {
+                    "line": 24,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/pages$"
+                },
+                {
+                    "line": 25,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/domains$"
+                },
+                {
+                    "line": 26,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/anchors$"
+                },
+                {
+                    "line": 27,
+                    "directive": "allow",
+                    "path": "/products/"
+                },
+                {
+                    "line": 28,
+                    "directive": "allow",
+                    "path": "/local/"
+                },
+                {
+                    "line": 29,
+                    "directive": "allow",
+                    "path": "/learn/"
+                },
+                {
+                    "line": 30,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/"
+                },
+                {
+                    "line": 31,
+                    "directive": "allow",
+                    "path": "/researchtools/ose/dotbot$"
+                }
+            ],
+            "disallow": [
+                {
+                    "line": 33,
+                    "directive": "disallow",
+                    "path": "/products/content/"
+                },
+                {
+                    "line": 34,
+                    "directive": "disallow",
+                    "path": "/local/enterprise/confirm"
+                },
+                {
+                    "line": 35,
+                    "directive": "disallow",
+                    "path": "/researchtools/ose/"
+                },
+                {
+                    "line": 36,
+                    "directive": "disallow",
+                    "path": "/page-strength/*"
+                },
+                {
+                    "line": 37,
+                    "directive": "disallow",
+                    "path": "/thumbs/*"
+                },
+                {
+                    "line": 38,
+                    "directive": "disallow",
+                    "path": "/api/user?*"
+                },
+                {
+                    "line": 39,
+                    "directive": "disallow",
+                    "path": "/checkout/*"
+                },
+                {
+                    "line": 40,
+                    "directive": "disallow",
+                    "path": "/purchase/*"
+                },
+                {
+                    "line": 41,
+                    "directive": "disallow",
+                    "path": "/local/search/"
+                },
+                {
+                    "line": 42,
+                    "directive": "disallow",
+                    "path": "/local/details/"
+                },
+                {
+                    "line": 43,
+                    "directive": "disallow",
+                    "path": "/messages/"
+                },
+                {
+                    "line": 44,
+                    "directive": "disallow",
+                    "path": "/content/audit/*"
+                },
+                {
+                    "line": 45,
+                    "directive": "disallow",
+                    "path": "/content/search/*"
+                },
+                {
+                    "line": 46,
+                    "directive": "disallow",
+                    "path": "/marketplace/"
+                },
+                {
+                    "line": 47,
+                    "directive": "disallow",
+                    "path": "/cpresources/"
+                },
+                {
+                    "line": 48,
+                    "directive": "disallow",
+                    "path": "/vendor/"
+                },
+                {
+                    "line": 49,
+                    "directive": "disallow",
+                    "path": "/community/q/questions/*/view_counts"
+                },
+                {
+                    "line": 50,
+                    "directive": "disallow",
+                    "path": "/admin-preview/*"
+                },
+                {
+                    "line": 51,
+                    "directive": "disallow",
+                    "path": "/community/q/socket.io/*"
+                }
+            ],
+            "crawlDelay": []
+        }
+    },
+    "sitemaps": [
+        {
+            "line": 1,
+            "url": "https://moz.com/sitemaps-1-sitemap.xml",
+            "valid": true
+        },
+        {
+            "line": 2,
+            "url": "https://moz.com/community/q/sitemap.xml",
+            "valid": true
+        }
+    ],
+    "robots_txt_directives": [
+        {
+            "line": 6,
+            "directive": "crawl-delay",
+            "path": "10"
+        },
+        {
+            "line": 9,
+            "directive": "crawl-delay",
+            "path": "10"
+        },
+        {
+            "line": 12,
+            "directive": "disallow",
+            "path": "/blog/"
+        },
+        {
+            "line": 13,
+            "directive": "disallow",
+            "path": "/learn/seo/"
+        },
+        {
+            "line": 16,
+            "directive": "disallow",
+            "path": "/blog/"
+        },
+        {
+            "line": 17,
+            "directive": "disallow",
+            "path": "/learn/seo/"
+        },
+        {
+            "line": 20,
+            "directive": "allow",
+            "path": "/researchtools/ose/$"
+        },
+        {
+            "line": 21,
+            "directive": "allow",
+            "path": "/researchtools/ose/dotbot$"
+        },
+        {
+            "line": 22,
+            "directive": "allow",
+            "path": "/researchtools/ose/links$"
+        },
+        {
+            "line": 23,
+            "directive": "allow",
+            "path": "/researchtools/ose/just-discovered$"
+        },
+        {
+            "line": 24,
+            "directive": "allow",
+            "path": "/researchtools/ose/pages$"
+        },
+        {
+            "line": 25,
+            "directive": "allow",
+            "path": "/researchtools/ose/domains$"
+        },
+        {
+            "line": 26,
+            "directive": "allow",
+            "path": "/researchtools/ose/anchors$"
+        },
+        {
+            "line": 27,
+            "directive": "allow",
+            "path": "/products/"
+        },
+        {
+            "line": 28,
+            "directive": "allow",
+            "path": "/local/"
+        },
+        {
+            "line": 29,
+            "directive": "allow",
+            "path": "/learn/"
+        },
+        {
+            "line": 30,
+            "directive": "allow",
+            "path": "/researchtools/ose/"
+        },
+        {
+            "line": 31,
+            "directive": "allow",
+            "path": "/researchtools/ose/dotbot$"
+        },
+        {
+            "line": 33,
+            "directive": "disallow",
+            "path": "/products/content/"
+        },
+        {
+            "line": 34,
+            "directive": "disallow",
+            "path": "/local/enterprise/confirm"
+        },
+        {
+            "line": 35,
+            "directive": "disallow",
+            "path": "/researchtools/ose/"
+        },
+        {
+            "line": 36,
+            "directive": "disallow",
+            "path": "/page-strength/*"
+        },
+        {
+            "line": 37,
+            "directive": "disallow",
+            "path": "/thumbs/*"
+        },
+        {
+            "line": 38,
+            "directive": "disallow",
+            "path": "/api/user?*"
+        },
+        {
+            "line": 39,
+            "directive": "disallow",
+            "path": "/checkout/*"
+        },
+        {
+            "line": 40,
+            "directive": "disallow",
+            "path": "/purchase/*"
+        },
+        {
+            "line": 41,
+            "directive": "disallow",
+            "path": "/local/search/"
+        },
+        {
+            "line": 42,
+            "directive": "disallow",
+            "path": "/local/details/"
+        },
+        {
+            "line": 43,
+            "directive": "disallow",
+            "path": "/messages/"
+        },
+        {
+            "line": 44,
+            "directive": "disallow",
+            "path": "/content/audit/*"
+        },
+        {
+            "line": 45,
+            "directive": "disallow",
+            "path": "/content/search/*"
+        },
+        {
+            "line": 46,
+            "directive": "disallow",
+            "path": "/marketplace/"
+        },
+        {
+            "line": 47,
+            "directive": "disallow",
+            "path": "/cpresources/"
+        },
+        {
+            "line": 48,
+            "directive": "disallow",
+            "path": "/vendor/"
+        },
+        {
+            "line": 49,
+            "directive": "disallow",
+            "path": "/community/q/questions/*/view_counts"
+        },
+        {
+            "line": 50,
+            "directive": "disallow",
+            "path": "/admin-preview/*"
+        },
+        {
+            "line": 51,
+            "directive": "disallow",
+            "path": "/community/q/socket.io/*"
+        }
+    ],
+    "disallowed": [
+        {
+            "line": 12,
+            "directive": "disallow",
+            "path": "/blog/",
+            "userAgent": [
+                "GPTBot"
+            ]
+        },
+        {
+            "line": 13,
+            "directive": "disallow",
+            "path": "/learn/seo/",
+            "userAgent": [
+                "GPTBot"
+            ]
+        },
+        {
+            "line": 16,
+            "directive": "disallow",
+            "path": "/blog/",
+            "userAgent": [
+                "DDM-DCipher"
+            ]
+        },
+        {
+            "line": 17,
+            "directive": "disallow",
+            "path": "/learn/seo/",
+            "userAgent": [
+                "DDM-DCipher"
+            ]
+        },
+        {
+            "line": 33,
+            "directive": "disallow",
+            "path": "/products/content/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 34,
+            "directive": "disallow",
+            "path": "/local/enterprise/confirm",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 35,
+            "directive": "disallow",
+            "path": "/researchtools/ose/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 36,
+            "directive": "disallow",
+            "path": "/page-strength/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 37,
+            "directive": "disallow",
+            "path": "/thumbs/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 38,
+            "directive": "disallow",
+            "path": "/api/user?*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 39,
+            "directive": "disallow",
+            "path": "/checkout/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 40,
+            "directive": "disallow",
+            "path": "/purchase/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 41,
+            "directive": "disallow",
+            "path": "/local/search/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 42,
+            "directive": "disallow",
+            "path": "/local/details/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 43,
+            "directive": "disallow",
+            "path": "/messages/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 44,
+            "directive": "disallow",
+            "path": "/content/audit/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 45,
+            "directive": "disallow",
+            "path": "/content/search/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 46,
+            "directive": "disallow",
+            "path": "/marketplace/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 47,
+            "directive": "disallow",
+            "path": "/cpresources/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 48,
+            "directive": "disallow",
+            "path": "/vendor/",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 49,
+            "directive": "disallow",
+            "path": "/community/q/questions/*/view_counts",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 50,
+            "directive": "disallow",
+            "path": "/admin-preview/*",
+            "userAgent": [
+                "*"
+            ]
+        },
+        {
+            "line": 51,
+            "directive": "disallow",
+            "path": "/community/q/socket.io/*",
+            "userAgent": [
+                "*"
+            ]
+        }
+    ],
+    "allowed": [
+        {
+            "line": 20,
+            "directive": "allow",
+            "path": "/researchtools/ose/$"
+        },
+        {
+            "line": 21,
+            "directive": "allow",
+            "path": "/researchtools/ose/dotbot$"
+        },
+        {
+            "line": 22,
+            "directive": "allow",
+            "path": "/researchtools/ose/links$"
+        },
+        {
+            "line": 23,
+            "directive": "allow",
+            "path": "/researchtools/ose/just-discovered$"
+        },
+        {
+            "line": 24,
+            "directive": "allow",
+            "path": "/researchtools/ose/pages$"
+        },
+        {
+            "line": 25,
+            "directive": "allow",
+            "path": "/researchtools/ose/domains$"
+        },
+        {
+            "line": 26,
+            "directive": "allow",
+            "path": "/researchtools/ose/anchors$"
+        },
+        {
+            "line": 27,
+            "directive": "allow",
+            "path": "/products/"
+        },
+        {
+            "line": 28,
+            "directive": "allow",
+            "path": "/local/"
+        },
+        {
+            "line": 29,
+            "directive": "allow",
+            "path": "/learn/"
+        },
+        {
+            "line": 30,
+            "directive": "allow",
+            "path": "/researchtools/ose/"
+        },
+        {
+            "line": 31,
+            "directive": "allow",
+            "path": "/researchtools/ose/dotbot$"
+        }
+    ],
+    "crawls_delay": [
+        {
+            "line": 6,
+            "directive": "crawl-delay",
+            "delay": 10
+        },
+        {
+            "line": 9,
+            "directive": "crawl-delay",
+            "delay": 10
+        }
+    ],
+    "size": 165152,
+    "comments": [
+        {
+            "line": 53,
+            "comment": "File last updated May 5, 2025"
+        }
+    ],
+    "lines": 47,
+    "html": [
+        [
+            "index",
+            "follow",
+            "max-image-preview:large",
+            "max-snippet:-1",
+            "max-video-preview:-1"
+        ]
+    ],
+    "headers": [
+        {
+            "X-Robots-Tag": [
+                "all"
+            ]
+        }
+    ],
+    "errors": []
+}
