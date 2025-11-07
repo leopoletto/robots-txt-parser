@@ -9,7 +9,8 @@ class UserAgent implements RobotsLineInterface
     public function __construct(
         public readonly int $line,
         public readonly string $userAgent
-    ) {}
+    ) {
+    }
 
     public function line(): int
     {
@@ -42,4 +43,3 @@ class UserAgent implements RobotsLineInterface
         return new static($lineNumber, $userAgent);
     }
 }
-

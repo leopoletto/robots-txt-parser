@@ -9,11 +9,12 @@ class HeaderDirective
      */
     public function __construct(
         public readonly array $directives
-    ) {}
+    ) {
+    }
 
     /**
      * Parse X-Robots-Tag HTTP headers
-     * 
+     *
      * @param array<string> $xRobotsTags
      * @return ?array<string>
      */
@@ -41,4 +42,3 @@ class HeaderDirective
         return array_unique($directives);
     }
 }
-

@@ -10,7 +10,8 @@ class Sitemap implements RobotsLineInterface
         public readonly int $line,
         public readonly string $url,
         public readonly bool $valid
-    ) {}
+    ) {
+    }
 
     public function line(): int
     {
@@ -23,6 +24,7 @@ class Sitemap implements RobotsLineInterface
     public static function isSitemap(string $line): bool
     {
         $trimmed = trim($line);
+
         return str_starts_with(strtolower($trimmed), 'sitemap:');
     }
 
@@ -42,4 +44,3 @@ class Sitemap implements RobotsLineInterface
         return new static($lineNumber, $url, $valid);
     }
 }
-

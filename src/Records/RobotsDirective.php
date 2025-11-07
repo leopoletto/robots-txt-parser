@@ -11,7 +11,8 @@ class RobotsDirective implements RobotsLineInterface
         public readonly UserAgent $userAgent,
         public readonly string $directive,
         public readonly string $path
-    ) {}
+    ) {
+    }
 
     public function line(): int
     {
@@ -24,6 +25,7 @@ class RobotsDirective implements RobotsLineInterface
     public static function isDirective(string $line): bool
     {
         $trimmed = strtolower(trim($line));
+
         return str_starts_with($trimmed, 'allow:')
             || str_starts_with($trimmed, 'disallow:')
             || str_starts_with($trimmed, 'crawl-delay:');
@@ -40,22 +42,24 @@ class RobotsDirective implements RobotsLineInterface
         if (str_starts_with($lowerTrimmed, 'allow:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
+
             return new static($lineNumber, $currentUserAgent, 'allow', $path);
         }
 
         if (str_starts_with($lowerTrimmed, 'disallow:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
+
             return new static($lineNumber, $currentUserAgent, 'disallow', $path);
         }
 
         if (str_starts_with($lowerTrimmed, 'crawl-delay:')) {
             $parts = explode(':', $trimmed, 2);
             $path = count($parts) === 2 ? trim($parts[1]) : '';
+
             return new static($lineNumber, $currentUserAgent, 'crawl-delay', $path);
         }
 
         return null;
     }
 }
-

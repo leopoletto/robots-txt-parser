@@ -17,7 +17,7 @@ class RobotsTxtParserTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Test robots.txt content
         $this->testRobotsTxtContent = <<<'ROBOTS'
 User-agent: *
@@ -61,7 +61,7 @@ ROBOTS;
     protected function tearDown(): void
     {
         parent::tearDown();
-        
+
         // Clean up temporary file
         if (file_exists($this->testRobotsTxtFile)) {
             unlink($this->testRobotsTxtFile);
@@ -79,6 +79,7 @@ ROBOTS;
         ]);
 
         $handlerStack = HandlerStack::create($mock);
+
         return new Client(['handler' => $handlerStack]);
     }
 
@@ -279,7 +280,7 @@ ROBOTS;
         // Should return unique directives (no duplicates)
         $disallowed = $records->disallowed()->toArray();
         $paths = array_column($disallowed, 'path');
-        
+
         // Check for duplicates
         $uniquePaths = array_unique($paths);
         $this->assertEquals(count($paths), count($uniquePaths), 'Found duplicate paths in disallowed directives');
@@ -288,7 +289,7 @@ ROBOTS;
     public function testSyntaxErrorCount(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Valid robots.txt should have no syntax errors
         $response = $parser->parseFile($this->testRobotsTxtFile);
         $records = $response->records();
@@ -319,6 +320,7 @@ ROBOTS;
             ];
         }
         ksort($normalized);
+
         return $normalized;
     }
 
@@ -346,7 +348,7 @@ ROBOTS;
             ];
         }
         ksort($normalized);
+
         return array_values($normalized);
     }
 }
-

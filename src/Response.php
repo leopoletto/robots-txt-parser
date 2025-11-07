@@ -26,7 +26,7 @@ class Response
 
     /**
      * Get all records as a RobotsCollection
-     * 
+     *
      * @return RobotsCollection
      */
     public function records(): RobotsCollection
@@ -34,4 +34,3 @@ class Response
         return $this->records;
     }
 }
-

@@ -6,14 +6,14 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
+use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
 use Leopoletto\RobotsTxtParser\Records\Comment;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
 use Leopoletto\RobotsTxtParser\Records\MetaDirective;
 use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
 use Leopoletto\RobotsTxtParser\Records\Sitemap;
-use Leopoletto\RobotsTxtParser\Records\UserAgent;
-use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
 use Leopoletto\RobotsTxtParser\Records\SyntaxError;
+use Leopoletto\RobotsTxtParser\Records\UserAgent;
 use RuntimeException;
 
 class RobotsTxtParser
@@ -30,7 +30,7 @@ class RobotsTxtParser
     public ?RobotsDirective $currentDirective = null;
 
     private Client $httpClient;
-    
+
     /**
      * Anatomy: Mozilla/5.0 (compatible; Bot Name/Version; Url)
      * Example: Mozilla/5.0 (compatible; RobotsTxtParser/1.0; https://github.com/leopoletto/robots-txt-parser)
@@ -47,7 +47,7 @@ class RobotsTxtParser
                 'strict' => true,
                 'referer' => true,
                 'protocols' => ['http', 'https'],
-                'track_redirects' => true
+                'track_redirects' => true,
             ],
             'timeout' => self::DEFAULT_TIMEOUT,
             'http_errors' => false,
@@ -76,9 +76,10 @@ class RobotsTxtParser
      */
     private function getUserAgent(): string
     {
-        if(strlen($this->userAgent) === 0){
+        if (strlen($this->userAgent) === 0) {
             throw new RuntimeException('Bot Signature Undefined, Use `configureUserAgent` method to configure.');
         }
+
         return $this->userAgent;
     }
 
@@ -90,12 +91,12 @@ class RobotsTxtParser
     {
         // Normalize URL - ensure it ends with /robots.txt or add it
         $robotsUrl = $this->normalizeRobotsUrl($url);
-        
+
         $size = 0;
         $records = RobotsCollection::build();
         $userAgent = $this->getUserAgent();
-        $isNotRobotsTxt = !str_ends_with($url, 'robots.txt');
-        
+        $isNotRobotsTxt = ! str_ends_with($url, 'robots.txt');
+
         // Reset parser state
         $this->currentUserAgents = [];
         $this->currentDirective = null;
@@ -107,16 +108,16 @@ class RobotsTxtParser
                     RequestOptions::HEADERS => [
                         'User-Agent' => $userAgent,
                     ],
-                    RequestOptions::TIMEOUT => self::TIMEOUT_URL
+                    RequestOptions::TIMEOUT => self::TIMEOUT_URL,
                 ]);
 
                 $statusCode = $pageResponse->getStatusCode();
 
                 // Get X-Robots-Tag headers from the page response
                 $xRobotsTags = $pageResponse->getHeader('X-Robots-Tag');
-                if (!empty($xRobotsTags)) {
+                if (! empty($xRobotsTags)) {
                     $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
-                    if (!empty($headerDirectives)) {
+                    if (! empty($headerDirectives)) {
                         $records->push(new HeaderDirective($headerDirectives));
                     }
                 }
@@ -129,7 +130,7 @@ class RobotsTxtParser
 
                     // Only read first part of HTML (meta tags are in <head>, usually first 100KB)
                     // But limit to 5MB to be safe
-                    while (!$body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
+                    while (! $body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
                         $chunk = $body->read(self::CHUNK_SIZE);
 
                         // Break if we get an empty chunk (no more data)
@@ -149,7 +150,7 @@ class RobotsTxtParser
                     }
 
                     $metaDirectives = MetaDirective::parseMetaTags($html);
-                    if (!empty($metaDirectives)) {
+                    if (! empty($metaDirectives)) {
                         $records->push(new MetaDirective($metaDirectives));
                     }
 
@@ -163,7 +164,7 @@ class RobotsTxtParser
                 // Continue even if page request fails - we still have robots.txt to parse
             }
         }
-        
+
         // Step 2: Download robots.txt (regardless of whether page request succeeded)
         try {
             $robotsResponse = $this->httpClient->get($robotsUrl, [
@@ -177,22 +178,23 @@ class RobotsTxtParser
                     'strict' => true,
                     'referer' => true,
                     'track_redirects' => true,
-                ]
+                ],
             ]);
 
-            if ($robotsResponse->getHeader('X-Guzzle-Redirect-History')) { 
+            if ($robotsResponse->getHeader('X-Guzzle-Redirect-History')) {
                 $redirectHistory = $robotsResponse->getHeader('X-Guzzle-Redirect-History');
-                if(count($redirectHistory) >= self::MAX_REDIRECTS) {
+                if (count($redirectHistory) >= self::MAX_REDIRECTS) {
                     $records->push(new SyntaxError(0, 'Redirect chain exceeds ' . self::MAX_REDIRECTS . ' redirects limit'));
+
                     return new Response($records, $size);
                 }
             }
 
             // Get X-Robots-Tag headers from robots.txt response (if any)
             $xRobotsTags = $robotsResponse->getHeader('X-Robots-Tag');
-            if (!empty($xRobotsTags)) {
+            if (! empty($xRobotsTags)) {
                 $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
-                if (!empty($headerDirectives)) {
+                if (! empty($headerDirectives)) {
                     $records->push(new HeaderDirective($headerDirectives));
                 }
             }
@@ -203,20 +205,20 @@ class RobotsTxtParser
             $buffer = '';
             $lineNumber = 0;
 
-            while (!$body->eof()) {
+            while (! $body->eof()) {
                 $chunk = $body->read(self::CHUNK_SIZE); // Read in 8KB chunks
-                
+
                 // Break if we get an empty chunk and buffer is empty (stream ended)
                 if (($chunk === '' || $chunk === false) && $buffer === '') {
                     break;
                 }
-                
+
                 // If we got empty chunk but have buffer data, process buffer and check once more
                 if ($chunk === '' || $chunk === false) {
                     // Process any remaining buffer and then break
                     break;
                 }
-                
+
                 $buffer .= $chunk;
                 $contentSize += strlen($chunk);
 
@@ -226,6 +228,7 @@ class RobotsTxtParser
                     } catch (\Exception $e) {
                         // Ignore close errors
                     }
+
                     throw new \RuntimeException('Robots.txt file size exceeds 500MB limit');
                 }
 
@@ -233,10 +236,10 @@ class RobotsTxtParser
                 while (($pos = strpos($buffer, "\n")) !== false) {
                     $line = substr($buffer, 0, $pos);
                     $buffer = substr($buffer, $pos + 1);
-                    
+
                     $lineNumber++;
                     $line = rtrim($line, "\r\n");
-                    
+
                     // Skip empty lines
                     if (trim($line) === '') {
                         continue;
@@ -267,7 +270,7 @@ class RobotsTxtParser
             }
 
             // Process remaining buffer
-            if (!empty(trim($buffer))) {
+            if (! empty(trim($buffer))) {
                 $lineNumber++;
                 $line = rtrim($buffer, "\r\n");
                 if (trim($line) !== '') {
@@ -300,9 +303,9 @@ class RobotsTxtParser
             } catch (\Exception $e) {
                 // Ignore close errors
             }
-            
+
             $size += $contentSize;
-            
+
             // Free memory
             unset($buffer, $body);
 
@@ -323,22 +326,23 @@ class RobotsTxtParser
     {
         $records = RobotsCollection::build();
         $lineNumber = 0;
-        
+
         // Reset parser state
         $this->currentUserAgents = [];
-        $this->currentDirective = null;    
+        $this->currentDirective = null;
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             throw new \RuntimeException("File not found: {$filePath}");
         }
 
-        if (!is_readable($filePath)) {
+        if (! is_readable($filePath)) {
             throw new \RuntimeException("File is not readable: {$filePath}");
         }
 
         $fileSize = filesize($filePath);
         if ($fileSize > self::MAX_FILE_SIZE) {
             $records->push(new SyntaxError(0, 'File size exceeds 500MB limit'));
+
             return new Response($records, $fileSize);
         }
 
@@ -395,38 +399,39 @@ class RobotsTxtParser
 
         $records = RobotsCollection::build();
         $lineNumber = 0;
-        
+
         // Reset parser state
         $this->currentUserAgents = [];
         $this->currentDirective = null;
 
         if ($size > self::MAX_FILE_SIZE) {
             $records->push(new SyntaxError(0, 'Content size exceeds 500MB limit'));
+
             return new Response($records, $size);
         }
-        
+
         // Use string stream for memory-efficient line-by-line processing
         $handle = fopen('php://memory', 'r+');
         if ($handle === false) {
             throw new \RuntimeException('Could not create memory stream');
         }
-        
+
         fwrite($handle, $content);
         rewind($handle);
-        
+
         // Free original content immediately
         unset($content);
 
         $lines = [];
         $firstLine = null;
         while (($line = fgets($handle)) !== false) {
-            if ($firstLine !== null &&  str_ends_with($line, $firstLine)) {
+            if ($firstLine !== null && str_ends_with($line, $firstLine)) {
                 continue;
             }
             if ($firstLine === null) {
                 $firstLine = $line;
             }
-            
+
             $line = rtrim($line, "\r\n");
 
             // Skip empty lines
@@ -463,7 +468,7 @@ class RobotsTxtParser
                 }
             }
         }
-        
+
         fclose($handle);
 
         return new Response($records, $size);
@@ -471,7 +476,7 @@ class RobotsTxtParser
 
     /**
      * Parse a single line and return the appropriate record object(s)
-     * 
+     *
      * @param string $line
      * @param int $lineNumber
      * @return RobotsLineInterface|array<RobotsLineInterface>|null
@@ -495,10 +500,10 @@ class RobotsTxtParser
 
         // Parse directive (must follow a user agent)
         if (RobotsDirective::isDirective($line)) {
-            if(empty($this->currentUserAgents)) {
+            if (empty($this->currentUserAgents)) {
                 return new SyntaxError($lineNumber, 'Directive must follow a user agent');
             }
-            
+
             // Store directive only once with the first user agent in the group
             // The collection will expand it on-demand when querying by user agent
             return RobotsDirective::parse($line, $lineNumber, $this->currentUserAgents[0]);
@@ -512,10 +517,10 @@ class RobotsTxtParser
      */
     private function normalizeRobotsUrl(string $url): string
     {
-        $host = parse_url($url,PHP_URL_HOST) . '/robots.txt';
+        $host = parse_url($url, PHP_URL_HOST) . '/robots.txt';
         $scheme = parse_url($url, PHP_URL_SCHEME);
         $robotsUrl = $scheme . '://' . $host;
+
         return $robotsUrl;
     }
 }
-

@@ -9,7 +9,8 @@ class Comment implements RobotsLineInterface
     public function __construct(
         public readonly int $line,
         public readonly string $comment
-    ) {}
+    ) {
+    }
 
     public function line(): int
     {
@@ -22,6 +23,7 @@ class Comment implements RobotsLineInterface
     public static function isComment(string $line): bool
     {
         $trimmed = trim($line);
+
         return str_starts_with($trimmed, '#');
     }
 
@@ -36,7 +38,7 @@ class Comment implements RobotsLineInterface
         }
 
         $comment = substr($trimmed, 1); // Remove the #
+
         return new static($lineNumber, trim($comment));
     }
 }
-

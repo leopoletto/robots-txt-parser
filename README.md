@@ -1,5 +1,9 @@
 # Robots TXT Parser
 
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/leopoletto/robots-txt-parser.svg?style=flat-square)](https://packagist.org/packages/leopoletto/robots-txt-parser)
+[![Tests](https://img.shields.io/github/actions/workflow/status/leopoletto/robots-txt-parser/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/leopoletto/robots-txt-parser/actions/workflows/run-tests.yml)
+[![Total Downloads](https://img.shields.io/packagist/dt/leopoletto/robots-txt-parser.svg?style=flat-square)](https://packagist.org/packages/leopoletto/robots-txt-parser)
+
 A comprehensive PHP package for parsing and analyzing robots.txt files. This library is designed to help you understand the structure and content of robots.txt files, including support for X-Robots-Tag HTTP headers and meta tags from HTML pages.
 
 > **Note**: This library is designed for **parsing and analyzing** robots.txt files to understand their structure. It does **not** validate whether a specific bot can crawl a specific URL.
@@ -417,10 +421,15 @@ $disallowed2 = $records->disallowed('GPT-User')->toArray();
 - ✅ Memory-efficient streaming for large files
 - ✅ Comprehensive test coverage
 
-## License
+## Credits
 
-MIT
+- [leopoletto](https://github.com/leopoletto)
+- [All Contributors](../../contributors)
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+The MIT License (MIT). Please see [License File](LICENSE.md) for more information.

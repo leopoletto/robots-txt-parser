@@ -9,12 +9,13 @@ class MetaDirective
      */
     public function __construct(
         public readonly array $directives
-    ) {}
+    ) {
+    }
 
     /**
      * Parse robots meta tags from HTML
      * Supports both attribute orders and self-closing tags
-     * 
+     *
      * @return array<string>
      */
     public static function parseMetaTags(string $html): array
@@ -28,10 +29,10 @@ class MetaDirective
         if (preg_match_all($pattern, $html, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 // Check which attribute order was matched
-                if (!empty($match[2])) {
+                if (! empty($match[2])) {
                     // name first, content second
                     $content = trim($match[2]);
-                } elseif (!empty($match[3])) {
+                } elseif (! empty($match[3])) {
                     // content first, name second
                     $content = trim($match[3]);
                 } else {
@@ -47,4 +48,3 @@ class MetaDirective
         return array_unique($directives);
     }
 }
-

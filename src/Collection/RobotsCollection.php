@@ -3,19 +3,19 @@
 namespace Leopoletto\RobotsTxtParser\Collection;
 
 use Illuminate\Support\Collection;
+use Leopoletto\RobotsTxtParser\Records\Comment;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
-use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
-use Leopoletto\RobotsTxtParser\Records\UserAgent;
 use Leopoletto\RobotsTxtParser\Records\MetaDirective;
-use Leopoletto\RobotsTxtParser\Records\Comment; 
+use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
 use Leopoletto\RobotsTxtParser\Records\Sitemap;
 use Leopoletto\RobotsTxtParser\Records\SyntaxError;
+use Leopoletto\RobotsTxtParser\Records\UserAgent;
 
 class RobotsCollection extends Collection
 {
     protected $displayUserAgent = false;
     protected ?array $userAgentGroups = null;
-    
+
     public static function build($items = []): self
     {
         return new self($items);
@@ -34,7 +34,7 @@ class RobotsCollection extends Collection
         $groups = [];
         $currentGroup = [];
         $previousWasUserAgent = false;
-        
+
         foreach ($this->items as $item) {
             if ($item instanceof UserAgent) {
                 if ($previousWasUserAgent) {
@@ -42,7 +42,7 @@ class RobotsCollection extends Collection
                     $currentGroup[] = $item->userAgent;
                 } else {
                     // New User-agent group - finalize previous group if exists
-                    if (!empty($currentGroup)) {
+                    if (! empty($currentGroup)) {
                         foreach ($currentGroup as $ua) {
                             $groups[$ua] = $currentGroup;
                         }
@@ -56,7 +56,7 @@ class RobotsCollection extends Collection
                 $previousWasUserAgent = false;
             } else {
                 // Other record types (comments, sitemaps, etc.) finalize the current group
-                if (!empty($currentGroup)) {
+                if (! empty($currentGroup)) {
                     foreach ($currentGroup as $ua) {
                         $groups[$ua] = $currentGroup;
                     }
@@ -65,15 +65,16 @@ class RobotsCollection extends Collection
                 $previousWasUserAgent = false;
             }
         }
-        
+
         // Finalize any remaining group
-        if (!empty($currentGroup)) {
+        if (! empty($currentGroup)) {
             foreach ($currentGroup as $ua) {
                 $groups[$ua] = $currentGroup;
             }
         }
 
         $this->userAgentGroups = $groups;
+
         return $groups;
     }
 
@@ -83,28 +84,29 @@ class RobotsCollection extends Collection
     protected function getUserAgentGroup(string $userAgent): array
     {
         $groups = $this->buildUserAgentGroups();
+
         return $groups[$userAgent] ?? [$userAgent];
     }
 
     public function sitemaps(): RobotsCollection
     {
         return new RobotsCollection($this->filter(fn ($item) => $item instanceof Sitemap)->values())
-            ->map(fn(Sitemap $item) => [
+            ->map(fn (Sitemap $item) => [
                 'line' => $item->line,
                 'url' => $item->url,
-                'valid' => $item->valid
+                'valid' => $item->valid,
             ])->values();
     }
 
     public function userAgents(?string $userAgent = null): RobotsCollection
     {
-        $userAgents = $this->filter(fn($item) => $item instanceof UserAgent)->values();
+        $userAgents = $this->filter(fn ($item) => $item instanceof UserAgent)->values();
 
-        if (!is_null($userAgent)) {
-            $userAgents = $userAgents->filter(fn(UserAgent $item) => $item->userAgent === $userAgent);
+        if (! is_null($userAgent)) {
+            $userAgents = $userAgents->filter(fn (UserAgent $item) => $item->userAgent === $userAgent);
         }
 
-        return new RobotsCollection($userAgents)->map(fn(UserAgent $item) => [
+        return new RobotsCollection($userAgents)->map(fn (UserAgent $item) => [
             'line' => $item->line,
             'userAgent' => $item->userAgent,
             'allow' => $this->allowed($item->userAgent)->toArray(),
@@ -121,9 +123,9 @@ class RobotsCollection extends Collection
     public function comments(): RobotsCollection
     {
         return new RobotsCollection($this->filter(fn ($item) => $item instanceof Comment)->values())
-            ->map(fn(Comment $item) => [
+            ->map(fn (Comment $item) => [
                 'line' => $item->line,
-                'comment' => $item->comment
+                'comment' => $item->comment,
             ])->values();
     }
 
@@ -131,20 +133,21 @@ class RobotsCollection extends Collection
     {
         // Get all disallow directives (stored once, not duplicated)
         $disallowed = $this->filter(
-            fn ($item) => $item instanceof RobotsDirective && $item->directive === 'disallow');
+            fn ($item) => $item instanceof RobotsDirective && $item->directive === 'disallow'
+        );
 
         $results = [];
-        
-        if (!is_null($userAgent)) {
+
+        if (! is_null($userAgent)) {
             // Find all user agents in the same group as the queried user agent
             $groupUserAgents = $this->getUserAgentGroup($userAgent);
-            
+
             // Filter directives that belong to any user agent in the group
             // The directive is stored with the first user agent in its group, so we check
             // if the directive's user agent group intersects with the queried user agent's group
             foreach ($disallowed as $directive) {
                 $directiveGroup = $this->getUserAgentGroup($directive->userAgent->userAgent);
-                if (!empty(array_intersect($groupUserAgents, $directiveGroup))) {
+                if (! empty(array_intersect($groupUserAgents, $directiveGroup))) {
                     // Expand directive for all user agents in the group if displayUserAgent is active
                     if ($this->displayUserAgent) {
                         foreach ($groupUserAgents as $ua) {
@@ -152,14 +155,14 @@ class RobotsCollection extends Collection
                                 'line' => $directive->line,
                                 'directive' => $directive->directive,
                                 'path' => $directive->path,
-                                'userAgent' => $ua
+                                'userAgent' => $ua,
                             ];
                         }
                     } else {
                         $results[] = [
                             'line' => $directive->line,
                             'directive' => $directive->directive,
-                            'path' => $directive->path
+                            'path' => $directive->path,
                         ];
                     }
                 }
@@ -169,20 +172,20 @@ class RobotsCollection extends Collection
             $seen = [];
             foreach ($disallowed as $directive) {
                 $key = $directive->line . '|' . $directive->path;
-                if (!isset($seen[$key])) {
+                if (! isset($seen[$key])) {
                     $seen[$key] = true;
                     $result = [
                         'line' => $directive->line,
                         'directive' => $directive->directive,
-                        'path' => $directive->path
+                        'path' => $directive->path,
                     ];
-                    
+
                     if ($this->displayUserAgent) {
                         // Show all user agents in the group for this directive
                         $groupUserAgents = $this->getUserAgentGroup($directive->userAgent->userAgent);
                         $result['userAgent'] = $groupUserAgents;
                     }
-                    
+
                     $results[] = $result;
                 }
             }
@@ -190,27 +193,27 @@ class RobotsCollection extends Collection
 
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
-        
+
         return new RobotsCollection($results)->values();
     }
 
     public function allowed(?string $userAgent = null): RobotsCollection
     {
         // Get all allow directives (stored once, not duplicated)
-        $allowed = $this->filter(fn($item) => $item instanceof RobotsDirective && $item->directive === 'allow');
+        $allowed = $this->filter(fn ($item) => $item instanceof RobotsDirective && $item->directive === 'allow');
 
         $results = [];
-        
-        if (!is_null($userAgent)) {
+
+        if (! is_null($userAgent)) {
             // Find all user agents in the same group as the queried user agent
             $groupUserAgents = $this->getUserAgentGroup($userAgent);
-            
+
             // Filter directives that belong to any user agent in the group
             // The directive is stored with the first user agent in its group, so we check
             // if the directive's user agent group intersects with the queried user agent's group
             foreach ($allowed as $directive) {
                 $directiveGroup = $this->getUserAgentGroup($directive->userAgent->userAgent);
-                if (!empty(array_intersect($groupUserAgents, $directiveGroup))) {
+                if (! empty(array_intersect($groupUserAgents, $directiveGroup))) {
                     // Expand directive for all user agents in the group if displayUserAgent is active
                     if ($this->displayUserAgent) {
                         foreach ($groupUserAgents as $ua) {
@@ -218,14 +221,14 @@ class RobotsCollection extends Collection
                                 'line' => $directive->line,
                                 'directive' => $directive->directive,
                                 'path' => $directive->path,
-                                'userAgent' => $ua
+                                'userAgent' => $ua,
                             ];
                         }
                     } else {
                         $results[] = [
                             'line' => $directive->line,
                             'directive' => $directive->directive,
-                            'path' => $directive->path
+                            'path' => $directive->path,
                         ];
                     }
                 }
@@ -235,20 +238,20 @@ class RobotsCollection extends Collection
             $seen = [];
             foreach ($allowed as $directive) {
                 $key = $directive->line . '|' . $directive->path;
-                if (!isset($seen[$key])) {
+                if (! isset($seen[$key])) {
                     $seen[$key] = true;
                     $result = [
                         'line' => $directive->line,
                         'directive' => $directive->directive,
-                        'path' => $directive->path
+                        'path' => $directive->path,
                     ];
-                    
+
                     if ($this->displayUserAgent) {
                         // Show all user agents in the group for this directive
                         $groupUserAgents = $this->getUserAgentGroup($directive->userAgent->userAgent);
                         $result['userAgent'] = $groupUserAgents;
                     }
-                    
+
                     $results[] = $result;
                 }
             }
@@ -256,27 +259,27 @@ class RobotsCollection extends Collection
 
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
-        
+
         return new RobotsCollection($results)->values();
     }
 
     public function crawlDelay(?string $userAgent = null): RobotsCollection
     {
         // Get all crawl-delay directives (stored once, not duplicated)
-        $crawlDelay = $this->filter(fn($item) => $item instanceof RobotsDirective && $item->directive === 'crawl-delay');
+        $crawlDelay = $this->filter(fn ($item) => $item instanceof RobotsDirective && $item->directive === 'crawl-delay');
 
         $results = [];
-        
-        if (!is_null($userAgent)) {
+
+        if (! is_null($userAgent)) {
             // Find all user agents in the same group as the queried user agent
             $groupUserAgents = $this->getUserAgentGroup($userAgent);
-            
+
             // Filter directives that belong to any user agent in the group
             // The directive is stored with the first user agent in its group, so we check
             // if the directive's user agent group intersects with the queried user agent's group
             foreach ($crawlDelay as $directive) {
                 $directiveGroup = $this->getUserAgentGroup($directive->userAgent->userAgent);
-                if (!empty(array_intersect($groupUserAgents, $directiveGroup))) {
+                if (! empty(array_intersect($groupUserAgents, $directiveGroup))) {
                     // Expand directive for all user agents in the group if displayUserAgent is active
                     if ($this->displayUserAgent) {
                         foreach ($groupUserAgents as $ua) {
@@ -284,14 +287,14 @@ class RobotsCollection extends Collection
                                 'line' => $directive->line,
                                 'directive' => $directive->directive,
                                 'delay' => (int) $directive->path,
-                                'userAgent' => $ua
+                                'userAgent' => $ua,
                             ];
                         }
                     } else {
                         $results[] = [
                             'line' => $directive->line,
                             'directive' => $directive->directive,
-                            'delay' => (int) $directive->path
+                            'delay' => (int) $directive->path,
                         ];
                     }
                 }
@@ -301,20 +304,20 @@ class RobotsCollection extends Collection
             $seen = [];
             foreach ($crawlDelay as $directive) {
                 $key = $directive->line . '|' . $directive->path;
-                if (!isset($seen[$key])) {
+                if (! isset($seen[$key])) {
                     $seen[$key] = true;
                     $result = [
                         'line' => $directive->line,
                         'directive' => $directive->directive,
-                        'delay' => (int) $directive->path
+                        'delay' => (int) $directive->path,
                     ];
-                    
+
                     if ($this->displayUserAgent) {
                         // Show all user agents in the group for this directive
                         $groupUserAgents = $this->getUserAgentGroup($directive->userAgent->userAgent);
                         $result['userAgent'] = $groupUserAgents;
                     }
-                    
+
                     $results[] = $result;
                 }
             }
@@ -322,7 +325,7 @@ class RobotsCollection extends Collection
 
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
-        
+
         return new RobotsCollection($results)->values();
     }
 
@@ -330,18 +333,18 @@ class RobotsCollection extends Collection
     {
         return new RobotsCollection(
             $this->filter(fn ($item) => $item instanceof RobotsDirective)->values()
-            )->displayUserAgent($this->displayUserAgent)
+        )->displayUserAgent($this->displayUserAgent)
             ->map(function (RobotsDirective $item) {
                 $response = [
                     'line' => $item->line,
                     'directive' => $item->directive,
-                    'path' => $item->path
+                    'path' => $item->path,
                 ];
 
                 if ($this->displayUserAgent) {
                     $response['userAgent'] = $item->userAgent->userAgent;
                 }
-                
+
                 return $response;
             })
             ->values();
@@ -352,19 +355,20 @@ class RobotsCollection extends Collection
     public function displayUserAgent(bool $displayUserAgent = true): self
     {
         $this->displayUserAgent = $displayUserAgent;
+
         return $this;
     }
 
     public function headersDirectives(): RobotsCollection
     {
         return new RobotsCollection($this->filter(fn ($item) => $item instanceof HeaderDirective)->values())
-            ->map(fn(HeaderDirective $item) => $item->directives)->values();
+            ->map(fn (HeaderDirective $item) => $item->directives)->values();
     }
 
     public function metaTagsDirectives(): RobotsCollection
     {
         return new RobotsCollection($this->filter(fn ($item) => $item instanceof MetaDirective)->values())
-            ->map(fn(MetaDirective $item) => $item->directives)->values();
+            ->map(fn (MetaDirective $item) => $item->directives)->values();
     }
 
     public function combinedDirectives(): RobotsCollection
@@ -379,10 +383,11 @@ class RobotsCollection extends Collection
     public function syntaxErrors(): RobotsCollection
     {
         return new RobotsCollection(
-            $this->filter(fn ($item) => $item instanceof SyntaxError)->values())
-            ->map(fn(SyntaxError $item) => [
+            $this->filter(fn ($item) => $item instanceof SyntaxError)->values()
+        )
+            ->map(fn (SyntaxError $item) => [
                 'line' => $item->line,
-                'message' => $item->message
+                'message' => $item->message,
             ])->values();
     }
 }
