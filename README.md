@@ -15,8 +15,11 @@ composer require leopoletto/robots-txt-parser
 ## Requirements
 
 - PHP 8.2 or higher
-- Guzzle HTTP Client (automatically installed)
-- Illuminate Collections (automatically installed)
+
+### Dependencies
+
+- Guzzle HTTP Client
+- Illuminate Collections
 
 ## Quick Start
 
@@ -57,6 +60,7 @@ The library provides three methods for parsing robots.txt content:
 ### 1. Parse from URL (`parseUrl`)
 
 Parses robots.txt from a URL and also extracts:
+
 - **X-Robots-Tag** HTTP headers from the robots.txt response
 - **Meta tags** (robots, googlebot, googlebot-news) from the HTML page if a non-robots.txt URL is provided
 
@@ -73,6 +77,7 @@ $records = $response->records();
 ```
 
 **What `parseUrl` returns:**
+
 - All robots.txt directives (User-agent, Allow, Disallow, Crawl-delay, Sitemap)
 - X-Robots-Tag headers from the robots.txt response
 - Meta tags from the HTML page (if parsing a non-robots.txt URL)
@@ -133,6 +138,7 @@ $googlebot = $records->userAgents('Googlebot')->toArray();
 ```
 
 **Example output:**
+
 ```json
 {
     "*": {
@@ -189,6 +195,7 @@ $crawlDelays = $records->crawlDelay()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -214,6 +221,7 @@ $disallowed = $records->displayUserAgent()->disallowed()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -233,6 +241,7 @@ $disallowed = $records->displayUserAgent()->disallowed('*')->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -257,6 +266,7 @@ $sitemaps = $records->sitemaps()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -274,6 +284,7 @@ $comments = $records->comments()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -292,6 +303,7 @@ $headers = $records->headersDirectives()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
@@ -309,6 +321,7 @@ $metaTags = $records->metaTagsDirectives()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     [
@@ -330,6 +343,7 @@ $errors = $records->syntaxErrors()->toArray();
 ```
 
 **Example output:**
+
 ```json
 [
     {
