@@ -6,7 +6,7 @@
 
 A comprehensive PHP package for parsing and analyzing robots.txt files. This library is designed to help you understand the structure and content of robots.txt files, including support for X-Robots-Tag HTTP headers and meta tags from HTML pages.
 
-> **Note**: This library is designed for **parsing and analyzing** robots.txt files to understand their structure. It does **not** validate whether a specific bot can crawl a specific URL.
+> **Note**: This library is designed for **parsing and analyzing** robots.txt files to understand their structure. It also provides methods to **check if a user agent is allowed to access a specific path** using the `uaAllowed()` and `isAllowed()` methods.
 
 ## Installation
 
@@ -148,6 +148,8 @@ $googlebot = $records->userAgents('Googlebot')->toArray();
     "*": {
         "line": 19,
         "userAgent": "*",
+        "description": null,
+        "category": null,
         "allow": [
             {
                 "line": 20,
@@ -167,6 +169,8 @@ $googlebot = $records->userAgents('Googlebot')->toArray();
     "GPTBot": {
         "line": 11,
         "userAgent": "GPTBot",
+        "description": "GPTBot is OpenAI's web crawler that collects data from publicly accessible web pages to improve AI models like ChatGPT, while respecting robots.txt and opt-out requests",
+        "category": "AI Data Scraper",
         "allow": [],
         "disallow": [
             {
@@ -179,6 +183,8 @@ $googlebot = $records->userAgents('Googlebot')->toArray();
     }
 }
 ```
+
+**Note:** The `description` and `category` fields are automatically populated for recognized bots from the built-in dataset. Unknown bots will have `null` values for these fields.
 
 ### Directives
 
@@ -357,6 +363,54 @@ $errors = $records->syntaxErrors()->toArray();
 ]
 ```
 
+### Checking Path Access
+
+Check if a specific user agent is allowed to access a path:
+
+```php
+// Check if GPTBot is allowed to access a specific path
+$isAllowed = $records->uaAllowed('GPTBot', '/ja-jp/community/search?q=hello');
+// Returns: false (if disallowed) or true (if allowed)
+
+// Alias method
+$isAllowed = $records->isAllowed('GPTBot', '/ko-kr/make/something');
+// Returns: true
+```
+
+**Features:**
+
+- **Case-insensitive user agent matching** - Works with any case variation
+- **Automatic wildcard fallback** - If the user agent doesn't exist, falls back to `*` rules
+- **Pattern matching support:**
+  - `*` wildcard - Matches any sequence of characters (can appear multiple times)
+  - `$` end anchor - Matches only at the end of the path
+- **Rule specificity** - More specific (longer) paths take precedence
+- **Default behavior** - Returns `true` (allowed) if no rules match
+
+**Examples:**
+
+```php
+$parser = new RobotsTxtParser();
+$robots = $parser->parseUrl('https://example.com/robots.txt');
+$records = $robots->records();
+
+// Check specific user agent
+$records->uaAllowed('GPTBot', '/allowed/path');     // true
+$records->uaAllowed('GPTBot', '/blocked/path');     // false
+
+// Falls back to wildcard if user agent not found
+$records->uaAllowed('UnknownBot', '/path');          // Uses * rules
+
+// Works with wildcard patterns
+// If robots.txt has: Disallow: /blog/*?s=*
+$records->uaAllowed('*', '/blog/article?s=test');  // false
+
+// Works with end anchor
+// If robots.txt has: Allow: /make/$
+$records->uaAllowed('*', '/make/');                 // true
+$records->uaAllowed('*', '/make/something');        // false
+```
+
 ## Complete Example
 
 Here's a complete example showing all available data:
@@ -419,6 +473,9 @@ $disallowed2 = $records->disallowed('GPT-User')->toArray();
 - ✅ Support for all standard directives (Allow, Disallow, Crawl-delay, Sitemap)
 - ✅ Comments and syntax error detection
 - ✅ Memory-efficient streaming for large files
+- ✅ **User agent recognition** - Automatic description and category for recognized bots
+- ✅ **Path access checking** - Check if a user agent is allowed to access a specific path
+- ✅ **Pattern matching** - Support for `*` wildcards and `$` end anchors
 - ✅ Comprehensive test coverage
 
 ## Credits

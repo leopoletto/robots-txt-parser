@@ -196,7 +196,12 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        return new RobotsCollection($results)->values();
+        $result = new RobotsCollection($results)->values();
+
+        // Restore the original displayUserAgent value
+        $this->displayUserAgent = $displayUserAgent;
+
+        return $result;
     }
 
     public function allowed(?string $userAgent = null): RobotsCollection
@@ -262,7 +267,12 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        return new RobotsCollection($results)->values();
+        $result = new RobotsCollection($results)->values();
+
+        // Restore the original displayUserAgent value
+        $this->displayUserAgent = $displayUserAgent;
+
+        return $result;
     }
 
     public function crawlDelay(?string $userAgent = null): RobotsCollection
@@ -328,7 +338,12 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        return new RobotsCollection($results)->values();
+        $result = new RobotsCollection($results)->values();
+
+        // Restore the original displayUserAgent value
+        $this->displayUserAgent = $displayUserAgent;
+
+        return $result;
     }
 
     public function robotsTxtDirectives(): RobotsCollection
@@ -391,5 +406,130 @@ class RobotsCollection extends Collection
                 'line' => $item->line,
                 'message' => $item->message,
             ])->values();
+    }
+
+    /**
+     * Check if a user agent is allowed to access a specific path
+     * Falls back to wildcard (*) rules if the user agent is not found
+     *
+     * @param string $userAgent The user agent name (e.g., 'GPTBot')
+     * @param string $path The path to check (e.g., '/ja-jp/community/search?q=hello')
+     * @return bool True if allowed, false if disallowed
+     */
+    public function uaAllowed(string $userAgent, string $path): bool
+    {
+        // Normalize path - ensure it starts with /
+        // Empty path is kept as empty for $ pattern matching, but we'll also check against /
+        if ($path !== '' && $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+
+        // Get all user agents to check if the specified one exists (case-insensitive)
+        $userAgents = $this->filter(fn ($item) => $item instanceof UserAgent)->values();
+        $foundUserAgent = $userAgents->first(
+            fn (UserAgent $item) =>
+            strtolower($item->userAgent) === strtolower($userAgent)
+        );
+
+        // If user agent exists, use its actual name (preserving case); otherwise fall back to wildcard
+        $targetUserAgent = $foundUserAgent ? $foundUserAgent->userAgent : '*';
+
+        // Get all allow and disallow rules for the target user agent
+        $allowRules = $this->allowed($targetUserAgent)->toArray();
+        $disallowRules = $this->disallowed($targetUserAgent)->toArray();
+
+        // Combine all rules with their type and sort by specificity (longer paths first)
+        $allRules = [];
+        foreach ($allowRules as $rule) {
+            $allRules[] = [
+                'type' => 'allow',
+                'path' => $rule['path'],
+                'line' => $rule['line'],
+            ];
+        }
+        foreach ($disallowRules as $rule) {
+            $allRules[] = [
+                'type' => 'disallow',
+                'path' => $rule['path'],
+                'line' => $rule['line'],
+            ];
+        }
+
+        // Sort by path length (longer = more specific) and then by line number
+        usort($allRules, function ($a, $b) {
+            $lenA = strlen($a['path']);
+            $lenB = strlen($b['path']);
+            if ($lenA !== $lenB) {
+                return $lenB <=> $lenA; // Longer paths first
+            }
+
+            return $a['line'] <=> $b['line']; // Earlier lines first if same length
+        });
+
+        // Check each rule in order of specificity
+        foreach ($allRules as $rule) {
+            if ($this->pathMatches($rule['path'], $path)) {
+                // First matching rule wins
+                return $rule['type'] === 'allow';
+            }
+        }
+
+        // If no rules match, default is allowed
+        return true;
+    }
+
+    /**
+     * Alias for uaAllowed() - Check if a user agent is allowed to access a specific path
+     *
+     * @param string $userAgent The user agent name (e.g., 'GPTBot')
+     * @param string $path The path to check (e.g., '/ja-jp/community/search?q=hello')
+     * @return bool True if allowed, false if disallowed
+     */
+    public function isAllowed(string $userAgent, string $path): bool
+    {
+        return $this->uaAllowed($userAgent, $path);
+    }
+
+    /**
+     * Check if a path matches a robots.txt pattern
+     * Supports * (wildcard) and $ (end anchor) operators
+     *
+     * @param string $pattern The pattern from robots.txt (e.g., '/make/$', '/exit?*')
+     * @param string $path The path to check (e.g., '/ja-jp/community/search?q=hello')
+     * @return bool True if the path matches the pattern
+     */
+    protected function pathMatches(string $pattern, string $path): bool
+    {
+        // Handle empty pattern (matches everything)
+        if ($pattern === '') {
+            return true;
+        }
+
+        // Check for end anchor ($) - it must be at the end
+        $hasEndAnchor = str_ends_with($pattern, '$');
+        if ($hasEndAnchor) {
+            // Remove $ from pattern
+            $pattern = rtrim($pattern, '$');
+            if ($pattern === '') {
+                // Pattern is just $, matches only empty path
+                return $path === '';
+            }
+        }
+
+        // Convert pattern to regex
+        // Escape special regex characters except *
+        $regex = preg_quote($pattern, '/');
+        // Replace escaped \* with .* (match any sequence of characters)
+        $regex = str_replace('\\*', '.*', $regex);
+        // Anchor to start of path
+        $regex = '^' . $regex;
+
+        // If end anchor was specified, also anchor to end
+        if ($hasEndAnchor) {
+            $regex .= '$';
+        }
+
+        // Match the pattern against the path
+        return preg_match('/' . $regex . '/', $path) === 1;
     }
 }

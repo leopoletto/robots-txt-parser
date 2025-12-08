@@ -630,4 +630,229 @@ ROBOTS;
             }
         }
     }
+
+    public function testUaAllowedWithSpecificUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test with GPT-User which has specific rules
+        // Based on test data: Disallow: /article, Disallow: /site-explorer/ajax/
+        $this->assertFalse($records->uaAllowed('GPT-User', '/article'));
+        $this->assertFalse($records->uaAllowed('GPT-User', '/site-explorer/ajax/'));
+        $this->assertTrue($records->uaAllowed('GPT-User', '/site-explorer/')); // Allow: /site-explorer/$
+        $this->assertFalse($records->uaAllowed('GPT-User', '/site-explorer/something')); // Disallow: /site-explorer/*
+    }
+
+    public function testUaAllowedFallsBackToWildcard(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test with non-existent user agent - should fall back to wildcard rules
+        $this->assertFalse($records->uaAllowed('NonExistentBot', '/article'));
+        $this->assertFalse($records->uaAllowed('NonExistentBot', '/site-explorer/ajax/'));
+        $this->assertTrue($records->uaAllowed('NonExistentBot', '/site-explorer/')); // Allow: /site-explorer/$
+    }
+
+    public function testUaAllowedWithWildcardPatterns(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test wildcard patterns from test data
+        // Disallow: /v4*
+        $this->assertFalse($records->uaAllowed('*', '/v4'));
+        $this->assertFalse($records->uaAllowed('*', '/v4/something'));
+        $this->assertFalse($records->uaAllowed('*', '/v4test'));
+
+        // Disallow: /blog/*?s=*
+        $this->assertFalse($records->uaAllowed('*', '/blog/article?s=test'));
+        $this->assertFalse($records->uaAllowed('*', '/blog/anything?s=anything'));
+
+        // Disallow: /draft/*
+        $this->assertFalse($records->uaAllowed('*', '/draft/article'));
+        $this->assertFalse($records->uaAllowed('*', '/draft/anything'));
+
+        // Disallow: /*/seo-toolbar/welcome
+        $this->assertFalse($records->uaAllowed('*', '/en/seo-toolbar/welcome'));
+        $this->assertFalse($records->uaAllowed('*', '/fr/seo-toolbar/welcome'));
+    }
+
+    public function testUaAllowedWithEndAnchor(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test end anchor ($) - Allow: /site-explorer/$
+        $this->assertTrue($records->uaAllowed('*', '/site-explorer/'));
+        $this->assertFalse($records->uaAllowed('*', '/site-explorer/something')); // Should not match because of $
+
+        // Allow: /link-intersect/$
+        $this->assertTrue($records->uaAllowed('*', '/link-intersect/'));
+        $this->assertFalse($records->uaAllowed('*', '/link-intersect/something'));
+    }
+
+    public function testUaAllowedWithMultipleWildcards(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test patterns with multiple wildcards
+        // Disallow: /seo/for/*?*draft
+        $this->assertFalse($records->uaAllowed('*', '/seo/for/article?param=draft'));
+        $this->assertFalse($records->uaAllowed('*', '/seo/for/anything?anything=draft'));
+
+        // Disallow: /agencies/*?*languages[]=*
+        $this->assertFalse($records->uaAllowed('*', '/agencies/test?languages[]=en'));
+        $this->assertFalse($records->uaAllowed('*', '/agencies/anything?anything=languages[]=anything'));
+    }
+
+    public function testUaAllowedCaseInsensitiveUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test case-insensitive user agent matching
+        $this->assertFalse($records->uaAllowed('gpt-user', '/article'));
+        $this->assertFalse($records->uaAllowed('GPT-USER', '/article'));
+        $this->assertFalse($records->uaAllowed('Gpt-User', '/article'));
+    }
+
+    public function testUaAllowedDefaultBehavior(): void
+    {
+        $parser = new RobotsTxtParser();
+        $robotsContent = "User-agent: TestBot\nDisallow: /blocked\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        // Paths not matching any rules should default to allowed
+        $this->assertTrue($records->uaAllowed('TestBot', '/allowed'));
+        $this->assertTrue($records->uaAllowed('TestBot', '/other/path'));
+        $this->assertFalse($records->uaAllowed('TestBot', '/blocked'));
+    }
+
+    public function testUaAllowedRuleSpecificity(): void
+    {
+        $parser = new RobotsTxtParser();
+        // More specific rule (longer path) should take precedence
+        $robotsContent = <<<'ROBOTS'
+User-agent: *
+Disallow: /path
+Allow: /path/specific
+Disallow: /path/specific/blocked
+ROBOTS;
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        // Longer, more specific rules should win
+        $this->assertFalse($records->uaAllowed('*', '/path')); // Disallow: /path
+        $this->assertTrue($records->uaAllowed('*', '/path/specific')); // Allow: /path/specific (more specific)
+        $this->assertFalse($records->uaAllowed('*', '/path/specific/blocked')); // Disallow: /path/specific/blocked (most specific)
+    }
+
+    public function testUaAllowedPathNormalization(): void
+    {
+        $parser = new RobotsTxtParser();
+        $robotsContent = "User-agent: *\nDisallow: /test\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        // Paths should be normalized (ensure they start with /)
+        $this->assertFalse($records->uaAllowed('*', 'test')); // Should normalize to /test
+        $this->assertFalse($records->uaAllowed('*', '/test')); // Already normalized
+    }
+
+    public function testIsAllowedAlias(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // isAllowed() should work identically to uaAllowed()
+        $this->assertEquals(
+            $records->uaAllowed('GPT-User', '/article'),
+            $records->isAllowed('GPT-User', '/article')
+        );
+
+        $this->assertEquals(
+            $records->uaAllowed('*', '/site-explorer/'),
+            $records->isAllowed('*', '/site-explorer/')
+        );
+    }
+
+    public function testUaAllowedWithEmptyPath(): void
+    {
+        $parser = new RobotsTxtParser();
+        $robotsContent = "User-agent: *\nDisallow: $\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        // Empty path pattern ($) should match empty path
+        $this->assertFalse($records->uaAllowed('*', ''));
+        $this->assertTrue($records->uaAllowed('*', '/'));
+    }
+
+    public function testUaAllowedWithQueryParameters(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Test patterns that include query parameters
+        // Disallow: /blog/*?s=*
+        $this->assertFalse($records->uaAllowed('*', '/blog/article?s=test'));
+        $this->assertFalse($records->uaAllowed('*', '/blog/anything?s=search'));
+
+        // Disallow: /*?input
+        $this->assertFalse($records->uaAllowed('*', '/test?input'));
+        $this->assertFalse($records->uaAllowed('*', '/anything?input=value'));
+    }
+
+    public function testUaAllowedWithAllowAndDisallowConflict(): void
+    {
+        $parser = new RobotsTxtParser();
+        // When both allow and disallow match, the more specific one wins
+        $robotsContent = <<<'ROBOTS'
+User-agent: *
+Disallow: /path
+Allow: /path/allowed
+ROBOTS;
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        $this->assertFalse($records->uaAllowed('*', '/path')); // Disallow wins (same length, earlier line)
+        $this->assertTrue($records->uaAllowed('*', '/path/allowed')); // Allow wins (more specific/longer)
+    }
+
+    public function testUaAllowedDoesNotModifyDisplayUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        // Enable displayUserAgent
+        $records->displayUserAgent(true);
+
+        // Verify it's enabled
+        $disallowedWithUA = $records->disallowed()->toArray();
+        $this->assertArrayHasKey('userAgent', $disallowedWithUA[0] ?? []);
+
+        // Call uaAllowed() which internally calls allowed() and disallowed()
+        $records->uaAllowed('GPT-User', '/article');
+
+        // Verify displayUserAgent is still enabled after uaAllowed()
+        $disallowedAfter = $records->disallowed()->toArray();
+        $this->assertArrayHasKey(
+            'userAgent',
+            $disallowedAfter[0] ?? [],
+            'displayUserAgent should still be enabled after calling uaAllowed()'
+        );
+    }
 }
