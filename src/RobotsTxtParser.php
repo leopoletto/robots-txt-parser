@@ -5,6 +5,7 @@ namespace Leopoletto\RobotsTxtParser;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
+use Illuminate\Support\Collection;
 use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
 use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
 use Leopoletto\RobotsTxtParser\Records\Comment;
@@ -28,6 +29,7 @@ class RobotsTxtParser
     /** @var array<UserAgent> */
     private array $currentUserAgents = [];
     public ?RobotsDirective $currentDirective = null;
+    public Collection $agentsDataset;
 
     private Client $httpClient;
 
@@ -52,6 +54,26 @@ class RobotsTxtParser
             'timeout' => self::DEFAULT_TIMEOUT,
             'http_errors' => false,
         ]);
+
+        $agentsFilePath = __DIR__ . '/data/agents.json';
+        if (!file_exists($agentsFilePath)) {
+            $this->agentsDataset = new Collection([]);
+            return;
+        }
+
+        $agentsData = file_get_contents($agentsFilePath);
+        if ($agentsData === false) {
+            $this->agentsDataset = new Collection([]);
+            return;
+        }
+
+        $decoded = json_decode($agentsData, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->agentsDataset = new Collection([]);
+            return;
+        }
+
+        $this->agentsDataset = new Collection($decoded ?? []);
     }
 
     /**
@@ -246,7 +268,8 @@ class RobotsTxtParser
                     }
 
                     // Parse the line and add to records
-                    $parsed = $this->parseLine($line, $lineNumber);
+                    $unmodifiedLine = $line;
+                    $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
                     if ($parsed !== null) {
                         if ($parsed instanceof UserAgent) {
                             // Check if the last record was also a User-agent
@@ -274,7 +297,8 @@ class RobotsTxtParser
                 $lineNumber++;
                 $line = rtrim($buffer, "\r\n");
                 if (trim($line) !== '') {
-                    $parsed = $this->parseLine($line, $lineNumber);
+                    $unmodifiedLine = $line;
+                    $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
                     if ($parsed !== null) {
                         if ($parsed instanceof UserAgent) {
                             // Check if the last record was also a User-agent
@@ -363,7 +387,8 @@ class RobotsTxtParser
             }
 
             // Parse the line
-            $parsed = $this->parseLine($line, $lineNumber);
+            $unmodifiedLine = $line;
+            $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
                     // Check if the last record was also a User-agent
@@ -439,7 +464,8 @@ class RobotsTxtParser
                 continue;
             }
 
-            $line = strtolower(trim($line));
+            $unmodifiedLine = trim($line);
+            $line = strtolower($unmodifiedLine);
             if (in_array($line, $lines)) {
                 continue;
             }
@@ -447,7 +473,7 @@ class RobotsTxtParser
             $lines[] = $line;
 
             // Parse the line
-            $parsed = $this->parseLine($line, $lineNumber);
+            $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
                     // Check if the last record was also a User-agent
@@ -481,7 +507,7 @@ class RobotsTxtParser
      * @param int $lineNumber
      * @return RobotsLineInterface|array<RobotsLineInterface>|null
      */
-    private function parseLine(string $line, int $lineNumber): RobotsLineInterface|array|null
+    private function parseLine(string $line, int $lineNumber, string $unmodifiedLine): RobotsLineInterface|array|null
     {
         // Parse comment
         if (Comment::isComment($line)) {
@@ -495,7 +521,12 @@ class RobotsTxtParser
 
         // Parse user agent
         if (UserAgent::isUserAgent($line)) {
-            return UserAgent::parse($line, $lineNumber);
+            return UserAgent::parse(
+                line: $line, 
+                lineNumber: $lineNumber, 
+                originalDeclaredAgentName: $unmodifiedLine, 
+                agentsDataset: $this->agentsDataset
+            );
         }
 
         // Parse directive (must follow a user agent)

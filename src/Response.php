@@ -33,4 +33,9 @@ class Response
     {
         return $this->records;
     }
+
+    public function isValid(): bool
+    {
+        return $this->records->count() > 0;
+    }
 }

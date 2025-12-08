@@ -1,7 +1,7 @@
 {
     "name": "leopoletto/robots-txt-parser",
     "description": "A comprehensive PHP package for parsing robots.txt files, including support for meta tags and X-Robots-Tag HTTP headers",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -24,7 +24,8 @@
         "test": "vendor/bin/phpunit",
         "test-coverage": "vendor/bin/phpunit --coverage",
         "format": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --allow-risky=yes",
-        "format:check": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --allow-risky=yes --dry-run --diff"
+        "format:check": "vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --allow-risky=yes --dry-run --diff",
+        "data:compress": "php src/data/compress.php"
     },
     "autoload": {
         "psr-4": {
