@@ -90,7 +90,7 @@ class RobotsCollection extends Collection
 
     public function sitemaps(): RobotsCollection
     {
-        return (new RobotsCollection($this->filter(fn($item) => $item instanceof Sitemap)->values()))
+        return (new RobotsCollection($this->filter(fn ($item) => $item instanceof Sitemap)->values()))
             ->map(fn (Sitemap $item) => [
                 'line' => $item->line,
                 'url' => $item->url,
@@ -124,7 +124,7 @@ class RobotsCollection extends Collection
 
     public function comments(): RobotsCollection
     {
-        return (new RobotsCollection($this->filter(fn($item) => $item instanceof Comment)->values()))
+        return (new RobotsCollection($this->filter(fn ($item) => $item instanceof Comment)->values()))
             ->map(fn (Comment $item) => [
                 'line' => $item->line,
                 'comment' => $item->comment,

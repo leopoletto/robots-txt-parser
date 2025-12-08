@@ -33,24 +33,23 @@ class UserAgent implements RobotsLineInterface
      * Parse user agent line
      */
     public static function parse(
-        string $line, 
-        int $lineNumber, 
-        string $originalDeclaredAgentName, 
+        string $line,
+        int $lineNumber,
+        string $originalDeclaredAgentName,
         Collection $agentsDataset
-        ): ?static
-    {
+    ): ?static {
         // Use originalDeclaredAgentName to preserve original casing for userAgent property
         // The $line parameter may be lowercased (from parseText), but we want original case
         $userAgent = self::parseAgent($originalDeclaredAgentName);
-        
+
         // Return null if parsing failed (empty user agent)
         if ($userAgent === '') {
             return null;
         }
-        
+
         $originalDeclaredAgentNameParsed = $userAgent;
 
-        $agent = $agentsDataset->first(function($agent) use ($originalDeclaredAgentNameParsed) {
+        $agent = $agentsDataset->first(function ($agent) use ($originalDeclaredAgentNameParsed) {
             return strtolower($agent['agent']) === strtolower($originalDeclaredAgentNameParsed);
         });
 

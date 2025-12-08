@@ -56,20 +56,23 @@ class RobotsTxtParser
         ]);
 
         $agentsFilePath = __DIR__ . '/data/agents.json';
-        if (!file_exists($agentsFilePath)) {
+        if (! file_exists($agentsFilePath)) {
             $this->agentsDataset = new Collection([]);
+
             return;
         }
 
         $agentsData = file_get_contents($agentsFilePath);
         if ($agentsData === false) {
             $this->agentsDataset = new Collection([]);
+
             return;
         }
 
         $decoded = json_decode($agentsData, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->agentsDataset = new Collection([]);
+
             return;
         }
 
@@ -522,9 +525,9 @@ class RobotsTxtParser
         // Parse user agent
         if (UserAgent::isUserAgent($line)) {
             return UserAgent::parse(
-                line: $line, 
-                lineNumber: $lineNumber, 
-                originalDeclaredAgentName: $unmodifiedLine, 
+                line: $line,
+                lineNumber: $lineNumber,
+                originalDeclaredAgentName: $unmodifiedLine,
                 agentsDataset: $this->agentsDataset
             );
         }

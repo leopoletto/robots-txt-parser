@@ -357,24 +357,25 @@ ROBOTS;
     public function testBotRecognitionWithKnownBot(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Use a bot that should be in the dataset (based on the structure we saw)
         $robotsContent = "User-agent: ChatGPT-User\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $this->assertGreaterThan(0, $userAgents->count());
-        
+
         // Check if any user agent has description or category (indicating recognition)
         $hasRecognizedBot = false;
         foreach ($userAgents as $ua) {
             if ($ua['description'] !== null || $ua['category'] !== null) {
                 $hasRecognizedBot = true;
+
                 break;
             }
         }
-        
+
         // If ChatGPT-User is in the dataset, it should be recognized
         // If not, we'll test with a generic bot that might not be recognized
         $this->assertIsArray($userAgents->first());
@@ -385,10 +386,10 @@ ROBOTS;
         $parser = new RobotsTxtParser();
         $response = $parser->parseFile($this->testRobotsTxtFile);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $this->assertGreaterThan(0, $userAgents->count());
-        
+
         // Verify all user agents have description and category fields
         foreach ($userAgents as $ua) {
             $this->assertArrayHasKey('description', $ua);
@@ -402,15 +403,15 @@ ROBOTS;
     public function testBotRecognitionCaseInsensitive(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Test with different case variations
         $robotsContent = "User-agent: chatgpt-user\nUser-agent: ChatGPT-User\nUser-agent: CHATGPT-USER\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $this->assertGreaterThanOrEqual(1, $userAgents->count());
-        
+
         // All variations should be parsed (case may be normalized)
         // The important thing is that matching works case-insensitively
         foreach ($userAgents as $ua) {
@@ -422,15 +423,15 @@ ROBOTS;
     public function testBotRecognitionWithUnknownBot(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Use a bot that's unlikely to be in the dataset
         $robotsContent = "User-agent: UnknownBot-12345\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $this->assertCount(1, $userAgents);
-        
+
         $ua = $userAgents->first();
         $this->assertArrayHasKey('description', $ua);
         $this->assertArrayHasKey('category', $ua);
@@ -446,10 +447,10 @@ ROBOTS;
         $parser = new RobotsTxtParser();
         $response = $parser->parseFile($this->testRobotsTxtFile);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $wildcardUA = $userAgents->get('*');
-        
+
         $this->assertNotNull($wildcardUA);
         $this->assertArrayHasKey('description', $wildcardUA);
         $this->assertArrayHasKey('category', $wildcardUA);
@@ -461,7 +462,7 @@ ROBOTS;
     public function testBotRecognitionWithMultipleBots(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Test with multiple different bots
         $robotsContent = <<<'ROBOTS'
 User-agent: ChatGPT-User
@@ -473,13 +474,13 @@ Disallow: /test2
 User-agent: *
 Disallow: /test3
 ROBOTS;
-        
+
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $this->assertGreaterThanOrEqual(3, $userAgents->count());
-        
+
         // Verify all have description and category fields
         foreach ($userAgents as $ua) {
             $this->assertArrayHasKey('description', $ua);
@@ -493,18 +494,18 @@ ROBOTS;
         // We can't easily test this without mocking, but we can verify
         // that the parser still works even if agents.json is missing
         $parser = new RobotsTxtParser();
-        
+
         // The parser should still work, just without bot recognition
         $robotsContent = "User-agent: TestBot\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         // Should still parse successfully
         $this->assertGreaterThan(0, $records->count());
-        
+
         $userAgents = $records->userAgents();
         $this->assertCount(1, $userAgents);
-        
+
         // Description and category should be null if agents file is missing/invalid
         $ua = $userAgents->first();
         $this->assertArrayHasKey('description', $ua);
@@ -514,14 +515,14 @@ ROBOTS;
     public function testBotRecognitionPreservesOriginalUserAgentName(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         $robotsContent = "User-agent: ChatGPT-User\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         $ua = $userAgents->first();
-        
+
         // The userAgent field should contain the parsed value
         $this->assertIsString($ua['userAgent']);
         $this->assertNotEmpty($ua['userAgent']);
@@ -531,28 +532,28 @@ ROBOTS;
     {
         $parser = new RobotsTxtParser($this->createMockHttpClient($this->testRobotsTxtContent));
         $parser->configureUserAgent('TestBot', '1.0', 'https://example.com');
-        
+
         $robotsContent = "User-agent: GPT-User\nDisallow: /test\n";
-        
+
         // Create temporary file
         $tempFile = sys_get_temp_dir() . '/test_robots_casing_' . uniqid() . '.txt';
         file_put_contents($tempFile, $robotsContent);
-        
+
         try {
             // Parse using all three methods
             $urlResponse = $parser->parseUrl('https://example.com/robots.txt');
             $fileResponse = $parser->parseFile($tempFile);
             $textResponse = $parser->parseText($robotsContent);
-            
+
             $urlUserAgents = $urlResponse->records()->userAgents();
             $fileUserAgents = $fileResponse->records()->userAgents();
             $textUserAgents = $textResponse->records()->userAgents();
-            
+
             // Find GPT-User in each result
             $urlGPT = $urlUserAgents->get('GPT-User') ?? $urlUserAgents->get('gpt-user');
             $fileGPT = $fileUserAgents->get('GPT-User') ?? $fileUserAgents->get('gpt-user');
             $textGPT = $textUserAgents->get('GPT-User') ?? $textUserAgents->get('gpt-user');
-            
+
             // All three methods should produce the same casing for the user agent
             if ($urlGPT && $fileGPT && $textGPT) {
                 $this->assertEquals(
@@ -576,12 +577,12 @@ ROBOTS;
     public function testUserAgentParseReturnsNullForInvalidUserAgent(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Test with invalid user agent (empty after parsing)
         $robotsContent = "User-agent:\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         // Invalid user agent should not be added to records
         $this->assertCount(0, $userAgents, 'Invalid user agent (empty) should not be added to records');
@@ -590,12 +591,12 @@ ROBOTS;
     public function testUserAgentParseReturnsNullForMalformedUserAgent(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Test with malformed user agent (no colon)
         $robotsContent = "User-agent\nDisallow: /test\n";
         $response = $parser->parseText($robotsContent);
         $records = $response->records();
-        
+
         $userAgents = $records->userAgents();
         // Malformed user agent should not be added to records
         $this->assertCount(0, $userAgents, 'Malformed user agent should not be added to records');
@@ -604,20 +605,20 @@ ROBOTS;
     public function testUserAgentCasingConsistencyWithEmptyUserAgent(): void
     {
         $parser = new RobotsTxtParser();
-        
+
         // Test that empty user agents are handled consistently across all methods
         $robotsContent = "User-agent: ValidBot\nUser-agent:\nDisallow: /test\n";
-        
+
         $tempFile = sys_get_temp_dir() . '/test_robots_empty_' . uniqid() . '.txt';
         file_put_contents($tempFile, $robotsContent);
-        
+
         try {
             $fileResponse = $parser->parseFile($tempFile);
             $textResponse = $parser->parseText($robotsContent);
-            
+
             $fileUserAgents = $fileResponse->records()->userAgents();
             $textUserAgents = $textResponse->records()->userAgents();
-            
+
             // Both should only have ValidBot, not the empty one
             $this->assertCount(1, $fileUserAgents);
             $this->assertCount(1, $textUserAgents);
