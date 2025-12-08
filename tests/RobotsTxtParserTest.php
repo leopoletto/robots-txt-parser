@@ -437,7 +437,8 @@ ROBOTS;
         // Unknown bot should have null values
         $this->assertNull($ua['description']);
         $this->assertNull($ua['category']);
-        $this->assertEquals('unknownbot-12345', $ua['userAgent']);
+        // User agent should preserve original case (not be lowercased)
+        $this->assertEquals('UnknownBot-12345', $ua['userAgent']);
     }
 
     public function testBotRecognitionWithWildcardUserAgent(): void
@@ -524,5 +525,108 @@ ROBOTS;
         // The userAgent field should contain the parsed value
         $this->assertIsString($ua['userAgent']);
         $this->assertNotEmpty($ua['userAgent']);
+    }
+
+    public function testUserAgentCasingConsistencyAcrossParsingMethods(): void
+    {
+        $parser = new RobotsTxtParser($this->createMockHttpClient($this->testRobotsTxtContent));
+        $parser->configureUserAgent('TestBot', '1.0', 'https://example.com');
+        
+        $robotsContent = "User-agent: GPT-User\nDisallow: /test\n";
+        
+        // Create temporary file
+        $tempFile = sys_get_temp_dir() . '/test_robots_casing_' . uniqid() . '.txt';
+        file_put_contents($tempFile, $robotsContent);
+        
+        try {
+            // Parse using all three methods
+            $urlResponse = $parser->parseUrl('https://example.com/robots.txt');
+            $fileResponse = $parser->parseFile($tempFile);
+            $textResponse = $parser->parseText($robotsContent);
+            
+            $urlUserAgents = $urlResponse->records()->userAgents();
+            $fileUserAgents = $fileResponse->records()->userAgents();
+            $textUserAgents = $textResponse->records()->userAgents();
+            
+            // Find GPT-User in each result
+            $urlGPT = $urlUserAgents->get('GPT-User') ?? $urlUserAgents->get('gpt-user');
+            $fileGPT = $fileUserAgents->get('GPT-User') ?? $fileUserAgents->get('gpt-user');
+            $textGPT = $textUserAgents->get('GPT-User') ?? $textUserAgents->get('gpt-user');
+            
+            // All three methods should produce the same casing for the user agent
+            if ($urlGPT && $fileGPT && $textGPT) {
+                $this->assertEquals(
+                    $urlGPT['userAgent'],
+                    $fileGPT['userAgent'],
+                    'parseUrl and parseFile should produce same user agent casing'
+                );
+                $this->assertEquals(
+                    $fileGPT['userAgent'],
+                    $textGPT['userAgent'],
+                    'parseFile and parseText should produce same user agent casing'
+                );
+            }
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+        }
+    }
+
+    public function testUserAgentParseReturnsNullForInvalidUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        
+        // Test with invalid user agent (empty after parsing)
+        $robotsContent = "User-agent:\nDisallow: /test\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+        
+        $userAgents = $records->userAgents();
+        // Invalid user agent should not be added to records
+        $this->assertCount(0, $userAgents, 'Invalid user agent (empty) should not be added to records');
+    }
+
+    public function testUserAgentParseReturnsNullForMalformedUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        
+        // Test with malformed user agent (no colon)
+        $robotsContent = "User-agent\nDisallow: /test\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+        
+        $userAgents = $records->userAgents();
+        // Malformed user agent should not be added to records
+        $this->assertCount(0, $userAgents, 'Malformed user agent should not be added to records');
+    }
+
+    public function testUserAgentCasingConsistencyWithEmptyUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        
+        // Test that empty user agents are handled consistently across all methods
+        $robotsContent = "User-agent: ValidBot\nUser-agent:\nDisallow: /test\n";
+        
+        $tempFile = sys_get_temp_dir() . '/test_robots_empty_' . uniqid() . '.txt';
+        file_put_contents($tempFile, $robotsContent);
+        
+        try {
+            $fileResponse = $parser->parseFile($tempFile);
+            $textResponse = $parser->parseText($robotsContent);
+            
+            $fileUserAgents = $fileResponse->records()->userAgents();
+            $textUserAgents = $textResponse->records()->userAgents();
+            
+            // Both should only have ValidBot, not the empty one
+            $this->assertCount(1, $fileUserAgents);
+            $this->assertCount(1, $textUserAgents);
+            $this->assertTrue($fileUserAgents->has('ValidBot'));
+            $this->assertTrue($textUserAgents->has('ValidBot'));
+        } finally {
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
+        }
     }
 }
