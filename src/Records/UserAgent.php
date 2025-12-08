@@ -43,16 +43,16 @@ class UserAgent implements RobotsLineInterface
         // $originalDeclaredAgentName contains the full line (e.g., "User-agent: ChatGPT-User")
         // We parse it to get the original declared agent name with original casing
         $originalDeclaredName = self::parseAgent($originalDeclaredAgentName);
-        
+
         // Return null if parsing failed (empty user agent)
         if ($originalDeclaredName === '') {
             return null;
         }
-        
+
         // Use the original declared name for the userAgent property to preserve casing
         $userAgent = $originalDeclaredName;
 
-        $agent = $agentsDataset->first(function($agent) use ($originalDeclaredName) {
+        $agent = $agentsDataset->first(function ($agent) use ($originalDeclaredName) {
             return strtolower($agent['agent']) === strtolower($originalDeclaredName);
         });
 
