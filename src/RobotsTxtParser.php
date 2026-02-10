@@ -175,8 +175,10 @@ class RobotsTxtParser
                     }
 
                     $metaDirectives = MetaDirective::parseMetaTags($html);
-                    if (! empty($metaDirectives)) {
-                        $records->push(new MetaDirective($metaDirectives));
+
+                    // Push each directive individually
+                    foreach ($metaDirectives as $directive) {
+                        $records->push(new MetaDirective($directive));
                     }
 
                     // Only count actual size we read

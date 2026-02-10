@@ -13,7 +13,7 @@ use Leopoletto\RobotsTxtParser\Records\UserAgent;
 
 class RobotsCollection extends Collection
 {
-    protected $displayUserAgent = false;
+    protected bool $displayUserAgent = false;
     protected ?array $userAgentGroups = null;
 
     public static function build($items = []): self
@@ -196,7 +196,7 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        $result = new RobotsCollection($results)->values();
+        $result = (new RobotsCollection($results))->values();
 
         // Restore the original displayUserAgent value
         $this->displayUserAgent = $displayUserAgent;
@@ -267,7 +267,7 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        $result = new RobotsCollection($results)->values();
+        $result = (new RobotsCollection($results))->values();
 
         // Restore the original displayUserAgent value
         $this->displayUserAgent = $displayUserAgent;
@@ -338,7 +338,7 @@ class RobotsCollection extends Collection
         $displayUserAgent = $this->displayUserAgent;
         $this->displayUserAgent = false;
 
-        $result = new RobotsCollection($results)->values();
+        $result = (new RobotsCollection($results))->values();
 
         // Restore the original displayUserAgent value
         $this->displayUserAgent = $displayUserAgent;
@@ -348,9 +348,9 @@ class RobotsCollection extends Collection
 
     public function robotsTxtDirectives(): RobotsCollection
     {
-        return new RobotsCollection(
-            $this->filter(fn ($item) => $item instanceof RobotsDirective)->values()
-        )->displayUserAgent($this->displayUserAgent)
+        $collection = (new RobotsCollection(
+            $this->filter(fn($item) => $item instanceof RobotsDirective)->values()
+        ))->displayUserAgent($this->displayUserAgent)
             ->map(function (RobotsDirective $item) {
                 $response = [
                     'line' => $item->line,
@@ -367,6 +367,8 @@ class RobotsCollection extends Collection
             ->values();
 
         $this->displayUserAgent(false);
+
+        return $collection;
     }
 
     public function displayUserAgent(bool $displayUserAgent = true): self
@@ -378,14 +380,15 @@ class RobotsCollection extends Collection
 
     public function headersDirectives(): RobotsCollection
     {
-        return new RobotsCollection($this->filter(fn ($item) => $item instanceof HeaderDirective)->values())
+        return (new RobotsCollection($this->filter(fn($item) => $item instanceof HeaderDirective)->values()))
             ->map(fn (HeaderDirective $item) => $item->directives)->values();
     }
 
     public function metaTagsDirectives(): RobotsCollection
     {
-        return new RobotsCollection($this->filter(fn ($item) => $item instanceof MetaDirective)->values())
-            ->map(fn (MetaDirective $item) => $item->directives)->values();
+        return (new RobotsCollection($this->filter(fn($item) => $item instanceof MetaDirective)->values()))
+            ->map(fn (MetaDirective $item) => $item->directives)
+            ->values();
     }
 
     public function combinedDirectives(): RobotsCollection
@@ -399,9 +402,9 @@ class RobotsCollection extends Collection
 
     public function syntaxErrors(): RobotsCollection
     {
-        return new RobotsCollection(
-            $this->filter(fn ($item) => $item instanceof SyntaxError)->values()
-        )
+        return (new RobotsCollection(
+            $this->filter(fn($item) => $item instanceof SyntaxError)->values()
+        ))
             ->map(fn (SyntaxError $item) => [
                 'line' => $item->line,
                 'message' => $item->message,
