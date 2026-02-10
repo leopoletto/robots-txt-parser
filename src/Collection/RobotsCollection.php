@@ -349,7 +349,7 @@ class RobotsCollection extends Collection
     public function robotsTxtDirectives(): RobotsCollection
     {
         $collection = (new RobotsCollection(
-            $this->filter(fn($item) => $item instanceof RobotsDirective)->values()
+            $this->filter(fn ($item) => $item instanceof RobotsDirective)->values()
         ))->displayUserAgent($this->displayUserAgent)
             ->map(function (RobotsDirective $item) {
                 $response = [
@@ -380,13 +380,13 @@ class RobotsCollection extends Collection
 
     public function headersDirectives(): RobotsCollection
     {
-        return (new RobotsCollection($this->filter(fn($item) => $item instanceof HeaderDirective)->values()))
+        return (new RobotsCollection($this->filter(fn ($item) => $item instanceof HeaderDirective)->values()))
             ->map(fn (HeaderDirective $item) => $item->directives)->values();
     }
 
     public function metaTagsDirectives(): RobotsCollection
     {
-        return (new RobotsCollection($this->filter(fn($item) => $item instanceof MetaDirective)->values()))
+        return (new RobotsCollection($this->filter(fn ($item) => $item instanceof MetaDirective)->values()))
             ->map(fn (MetaDirective $item) => $item->directives)
             ->values();
     }
@@ -403,7 +403,7 @@ class RobotsCollection extends Collection
     public function syntaxErrors(): RobotsCollection
     {
         return (new RobotsCollection(
-            $this->filter(fn($item) => $item instanceof SyntaxError)->values()
+            $this->filter(fn ($item) => $item instanceof SyntaxError)->values()
         ))
             ->map(fn (SyntaxError $item) => [
                 'line' => $item->line,

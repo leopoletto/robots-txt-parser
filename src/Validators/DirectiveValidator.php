@@ -135,7 +135,7 @@ class DirectiveValidator
      */
     private function validateParametricDirective(string $name, string $value): bool
     {
-        if (!isset(self::VALID_VALUES[$name])) {
+        if (! isset(self::VALID_VALUES[$name])) {
             return false;
         }
 
@@ -186,7 +186,7 @@ class DirectiveValidator
         $issues = [];
 
         foreach ($directives as $directive) {
-            if (!$directive['valid']) {
+            if (! $directive['valid']) {
                 $issues[] = [
                     'type' => 'invalid_directive',
                     'severity' => 'high',
@@ -312,7 +312,7 @@ class DirectiveValidator
         $valid = in_array($userAgent, self::VALID_USER_AGENTS);
 
         $issues = [];
-        if (!$valid && $userAgent !== '*') {
+        if (! $valid && $userAgent !== '*') {
             $issues[] = [
                 'type' => 'unknown_user_agent',
                 'severity' => 'low',

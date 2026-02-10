@@ -30,11 +30,11 @@ class MetaDirective
         if (preg_match_all($pattern, $html, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
                 // Determine which attribute order was matched
-                if (!empty($match[2])) {
+                if (! empty($match[2])) {
                     // name first, content second
                     $name = strtolower(trim($match[1]));
                     $content = trim($match[2]);
-                } elseif (!empty($match[3])) {
+                } elseif (! empty($match[3])) {
                     // content first, name second
                     $content = trim($match[3]);
                     $name = strtolower(trim($match[4]));
