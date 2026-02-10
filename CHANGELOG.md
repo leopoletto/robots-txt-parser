@@ -2,6 +2,10 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.0.1 - 2026-02-10
+
+**Full Changelog**: https://github.com/leopoletto/robots-txt-parser/compare/v2.0.0...v2.0.1
+
 ## v2.0.0 - 2026-02-10
 
 ### V2.0.0
