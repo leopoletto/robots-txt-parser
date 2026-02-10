@@ -2,6 +2,29 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.0.0 - 2026-02-10
+
+### V2.0.0
+
+#### Add tests for DirectiveValidator, RobotsMerger, HeaderDirective, and MetaDirective
+
+Commit: 388d283a7402ee1bda8ac16dfe831f2a5d01e2ae
+Cover validation, conflict/redundancy detection, parametric directives, user agent parsing, merge behavior, and integration with meta/header parsing.
+
+#### Update README with directive validation, merging, and enriched output docs
+
+Commit: a5ecfdad0257bf0e4004223d8b6af2eb22122350
+
+#### Add directive validation, merging, and integrate into HeaderDirective and MetaDirective
+
+Commit: 04ae317acd6e0ed14fb6a812bc957ee8d9154852
+
+- Add DirectiveValidator with conflict, redundancy, deprecation, and full spec detection
+- Add RobotsMerger to combine meta and header directives with most-restrictive-wins
+- Update HeaderDirective to parse with validation and user agent support
+- Update MetaDirective to parse with validation and Bingbot support
+- Fix RobotsCollection constructor chaining and return statement
+
 ## v1.1.0 - 2025-12-08
 
 ### New Features
