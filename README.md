@@ -306,7 +306,7 @@ $comments = $records->comments()->toArray();
 
 ### X-Robots-Tag Headers (from `parseUrl`)
 
-When parsing from a URL, you can access X-Robots-Tag HTTP headers:
+When parsing from a URL, you can access X-Robots-Tag HTTP headers. Each header is validated with conflict detection, redundancy analysis, and user agent validation:
 
 ```php
 $headers = $records->headersDirectives()->toArray();
@@ -317,14 +317,25 @@ $headers = $records->headersDirectives()->toArray();
 ```json
 [
     {
-        "X-Robots-Tag": ["all"]
+        "user_agent": "googlebot",
+        "user_agent_valid": true,
+        "raw": "googlebot: noindex, nofollow",
+        "directives": [
+            { "name": "noindex", "value": null, "type": "simple", "valid": true },
+            { "name": "nofollow", "value": null, "type": "simple", "valid": true }
+        ],
+        "valid": true,
+        "issues": [],
+        "conflicts": [],
+        "redundancies": [],
+        "is_full_spec": false
     }
 ]
 ```
 
 ### Meta Tags (from `parseUrl`)
 
-When parsing from a URL (non-robots.txt), you can access robots meta tags from the HTML:
+When parsing from a URL (non-robots.txt), you can access robots meta tags from the HTML. Supports `robots`, `googlebot`, `googlebot-news`, and `bingbot` meta tags with full validation:
 
 ```php
 $metaTags = $records->metaTagsDirectives()->toArray();
@@ -334,13 +345,20 @@ $metaTags = $records->metaTagsDirectives()->toArray();
 
 ```json
 [
-    [
-        "index",
-        "follow",
-        "max-image-preview:large",
-        "max-snippet:-1",
-        "max-video-preview:-1"
-    ]
+    {
+        "tag_name": "robots",
+        "raw": "index, follow, max-image-preview:large",
+        "directives": [
+            { "name": "index", "value": null, "type": "simple", "valid": true },
+            { "name": "follow", "value": null, "type": "simple", "valid": true },
+            { "name": "max-image-preview", "value": "large", "type": "parametric", "valid": true }
+        ],
+        "valid": true,
+        "issues": [],
+        "conflicts": [],
+        "redundancies": [],
+        "is_full_spec": false
+    }
 ]
 ```
 
@@ -411,6 +429,103 @@ $records->uaAllowed('*', '/make/');                 // true
 $records->uaAllowed('*', '/make/something');        // false
 ```
 
+### Directive Validation
+
+The `DirectiveValidator` can be used standalone to validate directive strings. It recognizes all standard simple directives, parametric directives (`max-snippet`, `max-image-preview`, `max-video-preview`), and detects conflicts, redundancies, and deprecated directives.
+
+```php
+use Leopoletto\RobotsTxtParser\Validators\DirectiveValidator;
+
+$validator = new DirectiveValidator();
+
+// Validate a directive string
+$result = $validator->validate('index, noindex, max-snippet:150');
+```
+
+**Example output:**
+
+```json
+{
+    "raw": "index, noindex, max-snippet:150",
+    "source": "meta",
+    "user_agent": null,
+    "directives": [
+        { "name": "index", "value": null, "type": "simple", "valid": true },
+        { "name": "noindex", "value": null, "type": "simple", "valid": true },
+        { "name": "max-snippet", "value": "150", "type": "parametric", "valid": true }
+    ],
+    "valid": false,
+    "issues": [],
+    "conflicts": [
+        {
+            "directives": ["index", "noindex"],
+            "severity": "high",
+            "message": "Conflicting directives: index and noindex",
+            "resolution": "Most restrictive wins (noindex)"
+        }
+    ],
+    "redundancies": [],
+    "is_full_spec": false
+}
+```
+
+You can also validate user agents for X-Robots-Tag headers:
+
+```php
+$result = $validator->validateUserAgent('googlebot');
+// { "user_agent": "googlebot", "valid": true, "issues": [] }
+
+$result = $validator->validateUserAgent('unknownbot');
+// { "user_agent": "unknownbot", "valid": false, "issues": [{ "type": "unknown_user_agent", ... }] }
+```
+
+**Validation features:**
+
+- **17 simple directives** recognized (index, noindex, follow, nofollow, nosnippet, noimageindex, noarchive, archive, notranslate, translate, all, none, nositelinkssearchbox, noodp, noydir)
+- **Parametric directives** validated: `max-snippet` (integer), `max-image-preview` (none/standard/large), `max-video-preview` (integer)
+- **Conflict detection** for contradictory pairs (index/noindex, follow/nofollow, nosnippet/max-snippet, all/none)
+- **Redundancy detection** for shorthand overlaps (e.g., `all` already includes `index`)
+- **Deprecation warnings** for `noodp` and `noydir`
+- **Full spec detection** when index + all three parametric directives are present
+- **Deduplication** of repeated directives
+- **Case insensitive** parsing
+
+### Directive Merging
+
+The `RobotsMerger` combines meta tag and header directives into a single effective ruleset. Header directives are applied after meta directives, allowing headers to override meta tags.
+
+```php
+use Leopoletto\RobotsTxtParser\Helpers\RobotsMerger;
+
+$metaDirectives = $records->metaTagsDirectives()->toArray();
+$headerDirectives = $records->headersDirectives()->toArray();
+
+$merged = RobotsMerger::merge($metaDirectives, $headerDirectives);
+```
+
+**Example output:**
+
+```json
+{
+    "effective_rules": {
+        "index": true,
+        "follow": true,
+        "max_snippet": -1,
+        "max_image_preview": "standard",
+        "max_video_preview": -1,
+        "archive": true,
+        "translate": true,
+        "image_index": true
+    },
+    "sources": {
+        "meta_count": 1,
+        "header_count": 2
+    }
+}
+```
+
+When no directives are present, the default permissive state is returned (all indexing/following allowed, no restrictions on snippets or previews).
+
 ## Complete Example
 
 Here's a complete example showing all available data:
@@ -467,7 +582,7 @@ $disallowed2 = $records->disallowed('GPT-User')->toArray();
 
 - ✅ Parse robots.txt from URL, file, or text
 - ✅ Extract X-Robots-Tag HTTP headers
-- ✅ Extract robots meta tags from HTML pages
+- ✅ Extract robots meta tags from HTML pages (robots, googlebot, googlebot-news, bingbot)
 - ✅ Handle consecutive User-agent declarations (groups)
 - ✅ Efficient storage (no duplicate directives)
 - ✅ Support for all standard directives (Allow, Disallow, Crawl-delay, Sitemap)
@@ -476,6 +591,8 @@ $disallowed2 = $records->disallowed('GPT-User')->toArray();
 - ✅ **User agent recognition** - Automatic description and category for recognized bots
 - ✅ **Path access checking** - Check if a user agent is allowed to access a specific path
 - ✅ **Pattern matching** - Support for `*` wildcards and `$` end anchors
+- ✅ **Directive validation** - Validate simple and parametric directives with conflict, redundancy, and deprecation detection
+- ✅ **Directive merging** - Merge meta tag and header directives with most-restrictive-wins resolution
 - ✅ Comprehensive test coverage
 
 ## Credits
