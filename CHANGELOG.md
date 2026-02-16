@@ -2,6 +2,16 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## V2.0.2 - 2026-02-16
+
+Enhance directive parsing and validation in RobotsTxtParser and Records
+
+- Updated RobotsTxtParser to push individual meta directives for improved handling.
+- Refactored RobotsCollection to use type hints and improved instantiation for clarity.
+- Added validation logic in HeaderDirective and MetaDirective for parsing X-Robots-Tag headers and meta tags, respectively.
+- Enhanced the return structure of parse methods to include validation results and issues for better error handling.
+- Update package version to 2.0.2 and add optional link property to UserAgent class
+
 ## v2.0.1 - 2026-02-10
 
 **Full Changelog**: https://github.com/leopoletto/robots-txt-parser/compare/v2.0.0...v2.0.1
