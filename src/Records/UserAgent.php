@@ -13,6 +13,7 @@ class UserAgent implements RobotsLineInterface
         public readonly string $originalDeclaredName,
         public readonly ?string $description = null,
         public readonly ?string $category = null,
+        public readonly ?string $link = null,
     ) {
     }
 
