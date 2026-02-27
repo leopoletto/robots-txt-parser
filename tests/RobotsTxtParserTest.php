@@ -831,6 +831,177 @@ ROBOTS;
         $this->assertTrue($records->uaAllowed('*', '/path/allowed')); // Allow wins (more specific/longer)
     }
 
+    // ── Directive info tests ──────────────────────────────────────────
+
+    /**
+     * Every allow/disallow directive must expose an info array with all four keys.
+     */
+    public function testDirectiveInfoStructureIsPresent(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        $directives = array_merge(
+            $records->allowed()->toArray(),
+            $records->disallowed()->toArray()
+        );
+
+        $this->assertNotEmpty($directives);
+
+        foreach ($directives as $directive) {
+            $this->assertArrayHasKey('info', $directive, "Directive at line {$directive['line']} is missing 'info'");
+            $info = $directive['info'];
+            $this->assertIsArray($info);
+            $this->assertArrayHasKey('path_to_match', $info);
+            $this->assertArrayHasKey('end_anchor', $info);
+            $this->assertArrayHasKey('wildcards', $info);
+            $this->assertArrayHasKey('specificity', $info);
+            $this->assertIsArray($info['specificity']);
+            $this->assertArrayHasKey('value', $info['specificity']);
+            $this->assertArrayHasKey('description', $info['specificity']);
+            $this->assertIsInt($info['specificity']['value']);
+            $this->assertIsString($info['path_to_match']);
+        }
+    }
+
+    /**
+     * End anchor ($): Allow: /site-explorer/$ matches /site-explorer/ exactly.
+     * The path does NOT match /site-explorer/something (confirmed by testUaAllowedWithEndAnchor).
+     */
+    public function testDirectiveInfoEndAnchor(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        $allowed = $records->allowed()->toArray();
+
+        // Allow: /site-explorer/$
+        $directive = array_values(array_filter($allowed, fn ($d) => $d['path'] === '/site-explorer/$'))[0] ?? null;
+        $this->assertNotNull($directive, 'Could not find Allow: /site-explorer/$');
+
+        $this->assertNotNull($directive['info']['end_anchor'], 'end_anchor info should be non-null for paths ending with $');
+        $this->assertNull($directive['info']['wildcards'], 'wildcards info should be null when no * is present');
+        $this->assertStringContainsString('/site-explorer/', $directive['info']['end_anchor']);
+        $this->assertStringContainsString('$', $directive['info']['path_to_match']);
+
+        // Allow: /link-intersect/$
+        $directive2 = array_values(array_filter($allowed, fn ($d) => $d['path'] === '/link-intersect/$'))[0] ?? null;
+        $this->assertNotNull($directive2, 'Could not find Allow: /link-intersect/$');
+        $this->assertNotNull($directive2['info']['end_anchor']);
+    }
+
+    /**
+     * Wildcards (*): Disallow: /v4* matches /v4, /v4/something, /v4test.
+     * Multiple wildcards: /blog/*?s=* matches /blog/article?s=test.
+     */
+    public function testDirectiveInfoWildcards(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        $disallowed = $records->disallowed()->toArray();
+
+        // Disallow: /v4*  – single wildcard, no end anchor
+        $directive = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/v4*'))[0] ?? null;
+        $this->assertNotNull($directive, 'Could not find Disallow: /v4*');
+        $this->assertNotNull($directive['info']['wildcards'], 'wildcards info should be non-null when * is present');
+        $this->assertNull($directive['info']['end_anchor'], 'end_anchor info should be null when $ is absent');
+        $this->assertStringContainsString('*', $directive['info']['path_to_match']);
+
+        // Disallow: /blog/*?s=*  – multiple wildcards
+        $directive2 = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/blog/*?s=*'))[0] ?? null;
+        $this->assertNotNull($directive2, 'Could not find Disallow: /blog/*?s=*');
+        $this->assertNotNull($directive2['info']['wildcards']);
+        $this->assertStringContainsString('2', $directive2['info']['wildcards']); // mentions count = 2
+
+        // Disallow: /*/seo-toolbar/welcome  – wildcard in the middle
+        $directive3 = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/*/seo-toolbar/welcome'))[0] ?? null;
+        $this->assertNotNull($directive3, 'Could not find Disallow: /*/seo-toolbar/welcome');
+        $this->assertNotNull($directive3['info']['wildcards']);
+    }
+
+    /**
+     * Specificity: more specific rule (longer path) should take precedence.
+     * Disallow: /path (5) < Allow: /path/specific (14) < Disallow: /path/specific/blocked (22).
+     */
+    public function testDirectiveInfoSpecificity(): void
+    {
+        $parser = new RobotsTxtParser();
+        $robotsContent = <<<'ROBOTS'
+User-agent: *
+Disallow: /path
+Allow: /path/specific
+Disallow: /path/specific/blocked
+ROBOTS;
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        $disallowed = $records->disallowed()->toArray();
+        $allowed = $records->allowed()->toArray();
+
+        $shortRule = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/path'))[0] ?? null;
+        $midRule = array_values(array_filter($allowed, fn ($d) => $d['path'] === '/path/specific'))[0] ?? null;
+        $longRule = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/path/specific/blocked'))[0] ?? null;
+
+        $this->assertNotNull($shortRule);
+        $this->assertNotNull($midRule);
+        $this->assertNotNull($longRule);
+
+        $this->assertSame(strlen('/path'), $shortRule['info']['specificity']['value']);
+        $this->assertSame(strlen('/path/specific'), $midRule['info']['specificity']['value']);
+        $this->assertSame(strlen('/path/specific/blocked'), $longRule['info']['specificity']['value']);
+
+        // Each longer rule has a higher specificity value
+        $this->assertLessThan($midRule['info']['specificity']['value'], $shortRule['info']['specificity']['value']);
+        $this->assertLessThan($longRule['info']['specificity']['value'], $midRule['info']['specificity']['value']);
+
+        $this->assertStringContainsString('specificity', $shortRule['info']['specificity']['description']);
+    }
+
+    /**
+     * Path to match (prefix): Disallow: /article matches /article, /article/anything.
+     * A plain path with no * or $ uses prefix matching.
+     */
+    public function testDirectiveInfoPathToMatchPrefix(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        $disallowed = $records->disallowed()->toArray();
+
+        // Disallow: /article – plain prefix, no wildcards, no end anchor
+        $directive = array_values(array_filter($disallowed, fn ($d) => $d['path'] === '/article'))[0] ?? null;
+        $this->assertNotNull($directive, 'Could not find Disallow: /article');
+
+        $this->assertNull($directive['info']['end_anchor']);
+        $this->assertNull($directive['info']['wildcards']);
+        $this->assertStringContainsString('/article', $directive['info']['path_to_match']);
+        // Specificity equals full path length
+        $this->assertSame(strlen('/article'), $directive['info']['specificity']['value']);
+    }
+
+    /**
+     * Directives shown via displayUserAgent() still expose info.
+     */
+    public function testDirectiveInfoPresentWithDisplayUserAgent(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->parseFile($this->testRobotsTxtFile);
+        $records = $response->records();
+
+        $disallowedWith = $records->displayUserAgent(true)->disallowed()->toArray();
+        $this->assertNotEmpty($disallowedWith);
+
+        foreach ($disallowedWith as $item) {
+            $this->assertArrayHasKey('info', $item);
+            $this->assertIsArray($item['info']);
+        }
+    }
+
     public function testUaAllowedDoesNotModifyDisplayUserAgent(): void
     {
         $parser = new RobotsTxtParser();

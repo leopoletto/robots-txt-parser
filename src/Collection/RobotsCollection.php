@@ -157,6 +157,7 @@ class RobotsCollection extends Collection
                                 'line' => $directive->line,
                                 'directive' => $directive->directive,
                                 'path' => $directive->path,
+                                'info' => $directive->info,
                                 'userAgent' => $ua,
                             ];
                         }
@@ -165,6 +166,7 @@ class RobotsCollection extends Collection
                             'line' => $directive->line,
                             'directive' => $directive->directive,
                             'path' => $directive->path,
+                            'info' => $directive->info,
                         ];
                     }
                 }
@@ -180,6 +182,7 @@ class RobotsCollection extends Collection
                         'line' => $directive->line,
                         'directive' => $directive->directive,
                         'path' => $directive->path,
+                        'info' => $directive->info,
                     ];
 
                     if ($this->displayUserAgent) {
@@ -228,6 +231,7 @@ class RobotsCollection extends Collection
                                 'line' => $directive->line,
                                 'directive' => $directive->directive,
                                 'path' => $directive->path,
+                                'info' => $directive->info,
                                 'userAgent' => $ua,
                             ];
                         }
@@ -236,6 +240,7 @@ class RobotsCollection extends Collection
                             'line' => $directive->line,
                             'directive' => $directive->directive,
                             'path' => $directive->path,
+                            'info' => $directive->info,
                         ];
                     }
                 }
@@ -251,6 +256,7 @@ class RobotsCollection extends Collection
                         'line' => $directive->line,
                         'directive' => $directive->directive,
                         'path' => $directive->path,
+                        'info' => $directive->info,
                     ];
 
                     if ($this->displayUserAgent) {
