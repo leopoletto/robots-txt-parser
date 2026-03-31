@@ -2,6 +2,10 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.1.2 - 2026-03-31
+
+Refactor RobotsTxtParser to clarify page size handling in comments
+
 ## V2.1.1 - 2026-03-31
 
 ### Enhance RobotsDirective to include detailed info array for allow/disallow directives
