@@ -787,6 +787,19 @@ ROBOTS;
         );
     }
 
+    public function testUaAllowedWithEmptyDisallowValue(): void
+    {
+        $parser = new RobotsTxtParser();
+        // Empty Disallow: means nothing is disallowed — all paths should be allowed
+        $robotsContent = "User-agent: *\nDisallow:\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        $this->assertTrue($records->uaAllowed('*', '/'));
+        $this->assertTrue($records->uaAllowed('*', '/any/path'));
+        $this->assertTrue($records->uaAllowed('SomeBot', '/'));
+    }
+
     public function testUaAllowedWithEmptyPath(): void
     {
         $parser = new RobotsTxtParser();

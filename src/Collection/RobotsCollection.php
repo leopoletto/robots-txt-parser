@@ -457,6 +457,10 @@ class RobotsCollection extends Collection
             ];
         }
         foreach ($disallowRules as $rule) {
+            // An empty Disallow: means nothing is disallowed — skip it (per robots.txt spec)
+            if ($rule['path'] === '') {
+                continue;
+            }
             $allRules[] = [
                 'type' => 'disallow',
                 'path' => $rule['path'],
