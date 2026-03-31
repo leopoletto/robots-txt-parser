@@ -181,8 +181,7 @@ class RobotsTxtParser
                         $records->push(new MetaDirective($directive));
                     }
 
-                    // Only count actual size we read
-                    $size += $htmlSize;
+                    // Page size is not counted — size() reflects only the robots.txt response
 
                     // Free memory
                     unset($html, $body);
