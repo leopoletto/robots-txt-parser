@@ -2,6 +2,14 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## V2.1.1 - 2026-03-31
+
+### Enhance RobotsDirective to include detailed info array for allow/disallow directives
+
+- Added an `info` property to the `RobotsDirective` class, which computes and stores details about path matching, end anchors, wildcards, and specificity.
+- Updated `RobotsCollection` to include the new `info` property in directive outputs.
+- Introduced comprehensive tests to validate the structure and content of the `info` array for directives.
+
 ## v2.1.0 - 2026-02-27
 
 Enhance RobotsDirective to include detailed info array for allow/disallow directives
