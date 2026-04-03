@@ -482,7 +482,7 @@ class RobotsTxtParser
 
             // Parse the line
             $unmodifiedLine = $line;
-           
+
             $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
@@ -598,7 +598,7 @@ class RobotsTxtParser
 
         fclose($handle);
 
-        
+
 
         return new Response($records, $size);
     }

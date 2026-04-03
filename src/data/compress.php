@@ -160,7 +160,7 @@ $text = [
     "EmailSiphon",
     "EmailWolf",
     "Pinterestbot",
-    "Pinterest"
+    "Pinterest",
 ];
 
 foreach ($agents as $key => $agent) {

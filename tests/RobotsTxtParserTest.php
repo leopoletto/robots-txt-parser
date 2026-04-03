@@ -1329,4 +1329,3 @@ ROBOTS;
         $this->assertNotNull($novaAct['category']);
     }
 }
-

@@ -6,7 +6,6 @@ use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
 
 class Content implements RobotsLineInterface
 {
-
     public function __construct(
         public readonly int $line,
         public readonly string $content
@@ -22,5 +21,4 @@ class Content implements RobotsLineInterface
     {
         return $this->content;
     }
-
 }
