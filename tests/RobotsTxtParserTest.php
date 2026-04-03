@@ -1039,4 +1039,294 @@ ROBOTS;
             'displayUserAgent should still be enabled after calling uaAllowed()'
         );
     }
+
+    // ── loadContent tests ─────────────────────────────────────────────────
+
+    /**
+     * loadContent(false) (default) means $parser->content stays null after parseText.
+     */
+    public function testLoadContentDisabledByDefaultForParseText(): void
+    {
+        $parser = new RobotsTxtParser();
+        $parser->parseText($this->testRobotsTxtContent);
+
+        $this->assertNull($parser->content, 'content should stay null when loadContent is false');
+    }
+
+    /**
+     * loadContent(false) (default) means $parser->content stays null after parseFile.
+     */
+    public function testLoadContentDisabledByDefaultForParseFile(): void
+    {
+        $parser = new RobotsTxtParser();
+        $parser->parseFile($this->testRobotsTxtFile);
+
+        $this->assertNull($parser->content, 'content should stay null when loadContent is false');
+    }
+
+    /**
+     * loadContent(false) (default) means $parser->content stays null after parseUrl.
+     */
+    public function testLoadContentDisabledByDefaultForParseUrl(): void
+    {
+        $parser = new RobotsTxtParser($this->createMockHttpClient($this->testRobotsTxtContent));
+        $parser->configureUserAgent('TestBot', '1.0', 'https://example.com');
+        $parser->parseUrl('https://example.com/robots.txt');
+
+        $this->assertNull($parser->content, 'content should stay null when loadContent is false');
+    }
+
+    /**
+     * loadContent(true) stores the raw content after parseText and content is still parseable.
+     */
+    public function testLoadContentEnabledForParseText(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->loadContent(true)->parseText($this->testRobotsTxtContent);
+
+        // Content must be populated
+        $this->assertNotNull($parser->content);
+        $this->assertIsString($parser->content);
+        $this->assertNotEmpty($parser->content);
+
+        // The stored content should contain at least some of the original directives
+        $this->assertStringContainsStringIgnoringCase('user-agent', $parser->content);
+        $this->assertStringContainsStringIgnoringCase('disallow', $parser->content);
+
+        // Parsing must still have worked normally
+        $records = $response->records();
+        $this->assertGreaterThan(0, $records->count());
+        $this->assertCount(25, $records->disallowed());
+    }
+
+    /**
+     * loadContent(true) stores the raw content after parseFile and content is still parseable.
+     */
+    public function testLoadContentEnabledForParseFile(): void
+    {
+        $parser = new RobotsTxtParser();
+        $response = $parser->loadContent(true)->parseFile($this->testRobotsTxtFile);
+
+        // Content must be populated
+        $this->assertNotNull($parser->content);
+        $this->assertIsString($parser->content);
+        $this->assertNotEmpty($parser->content);
+
+        // The stored content should contain at least some of the original directives
+        $this->assertStringContainsStringIgnoringCase('user-agent', $parser->content);
+        $this->assertStringContainsStringIgnoringCase('disallow', $parser->content);
+
+        // Parsing must still have worked normally
+        $records = $response->records();
+        $this->assertGreaterThan(0, $records->count());
+        $this->assertCount(25, $records->disallowed());
+        $this->assertCount(4, $records->allowed());
+    }
+
+    /**
+     * loadContent(true) stores the raw content after parseUrl and content is still parseable.
+     */
+    public function testLoadContentEnabledForParseUrl(): void
+    {
+        $parser = new RobotsTxtParser($this->createMockHttpClient($this->testRobotsTxtContent));
+        $parser->configureUserAgent('TestBot', '1.0', 'https://example.com');
+        $response = $parser->loadContent(true)->parseUrl('https://example.com/robots.txt');
+
+        // Content must be populated
+        $this->assertNotNull($parser->content);
+        $this->assertIsString($parser->content);
+        $this->assertNotEmpty($parser->content);
+
+        // The stored content should contain at least some of the original directives
+        $this->assertStringContainsStringIgnoringCase('disallow', $parser->content);
+
+        // Parsing must still have worked normally
+        $records = $response->records();
+        $this->assertGreaterThan(0, $records->count());
+        $this->assertCount(25, $records->disallowed());
+        $this->assertCount(4, $records->allowed());
+    }
+
+    /**
+     * After two consecutive parseFile calls, content must reflect only the LAST call.
+     */
+    public function testLoadContentResetsOnConsecutiveParseFileCalls(): void
+    {
+        $firstContent = "User-agent: *\nDisallow: /first\n";
+        $secondContent = "User-agent: *\nDisallow: /second\n";
+
+        $firstFile = sys_get_temp_dir() . '/test_robots_first_' . uniqid() . '.txt';
+        $secondFile = sys_get_temp_dir() . '/test_robots_second_' . uniqid() . '.txt';
+        file_put_contents($firstFile, $firstContent);
+        file_put_contents($secondFile, $secondContent);
+
+        try {
+            $parser = new RobotsTxtParser();
+            $parser->loadContent(true);
+
+            $parser->parseFile($firstFile);
+            $contentAfterFirst = $parser->content;
+
+            $parser->parseFile($secondFile);
+            $contentAfterSecond = $parser->content;
+
+            // Each call must produce disjoint content (no accumulation)
+            $this->assertStringContainsString('/first', $contentAfterFirst);
+            $this->assertStringNotContainsString('/second', $contentAfterFirst);
+
+            $this->assertStringContainsString('/second', $contentAfterSecond);
+            $this->assertStringNotContainsString('/first', $contentAfterSecond);
+        } finally {
+            @unlink($firstFile);
+            @unlink($secondFile);
+        }
+    }
+
+    /**
+     * After two consecutive parseText calls, content must reflect only the LAST call.
+     */
+    public function testLoadContentResetsOnConsecutiveParseTextCalls(): void
+    {
+        $parser = new RobotsTxtParser();
+        $parser->loadContent(true);
+
+        $parser->parseText("User-agent: *\nDisallow: /first\n");
+        $contentAfterFirst = $parser->content;
+
+        $parser->parseText("User-agent: *\nDisallow: /second\n");
+        $contentAfterSecond = $parser->content;
+
+        $this->assertStringContainsString('/first', $contentAfterFirst);
+        $this->assertStringNotContainsString('/second', $contentAfterFirst);
+
+        $this->assertStringContainsString('/second', $contentAfterSecond);
+        $this->assertStringNotContainsString('/first', $contentAfterSecond);
+    }
+
+    /**
+     * After two consecutive parseUrl calls, content must reflect only the LAST call.
+     */
+    public function testLoadContentResetsOnConsecutiveParseUrlCalls(): void
+    {
+        $firstContent = "User-agent: *\nDisallow: /first\n";
+        $secondContent = "User-agent: *\nDisallow: /second\n";
+
+        $mock = new MockHandler([
+            new Response(200, [], $firstContent),
+            new Response(200, [], $secondContent),
+        ]);
+
+        $handlerStack = HandlerStack::create($mock);
+        $httpClient = new Client(['handler' => $handlerStack]);
+
+        $parser = new RobotsTxtParser($httpClient);
+        $parser->configureUserAgent('TestBot', '1.0', 'https://example.com');
+        $parser->loadContent(true);
+
+        $parser->parseUrl('https://example.com/robots.txt');
+        $contentAfterFirst = $parser->content;
+
+        $parser->parseUrl('https://example.com/robots.txt');
+        $contentAfterSecond = $parser->content;
+
+        $this->assertStringContainsString('/first', $contentAfterFirst);
+        $this->assertStringNotContainsString('/second', $contentAfterFirst);
+
+        $this->assertStringContainsString('/second', $contentAfterSecond);
+        $this->assertStringNotContainsString('/first', $contentAfterSecond);
+    }
+
+    // ── agents lazy-loading tests ──────────────────────────────────────
+
+    /**
+     * On construction, only priority=1 agents are in the eager dataset.
+     */
+    public function testAgentsDatasetContainsOnlyPriorityAgentsEagerly(): void
+    {
+        $parser = new RobotsTxtParser();
+
+        // Every entry in the eagerly-loaded dataset must have priority=1
+        foreach ($parser->agentsDataset as $agent) {
+            $this->assertSame(
+                1,
+                $agent['priority'] ?? -1,
+                "Eagerly loaded agent '{$agent['agent']}' has priority != 1"
+            );
+        }
+
+        // The eager dataset should be significantly smaller than the full 1 600-entry list
+        $this->assertGreaterThan(0, $parser->agentsDataset->count(), 'Should have at least some priority agents');
+        $this->assertLessThan(200, $parser->agentsDataset->count(), 'Eager dataset should be much smaller than full list');
+    }
+
+    /**
+     * A priority=1 agent (e.g. GPTBot) is recognised without triggering a lazy load.
+     */
+    public function testPriorityAgentIsRecognisedEagerly(): void
+    {
+        $parser = new RobotsTxtParser();
+        // GPTBot has priority=1 in agents.json
+        $response = $parser->parseText("User-agent: GPTBot\nDisallow: /test\n");
+        $records = $response->records();
+
+        $userAgents = $records->userAgents();
+        $gptBot = $userAgents->get('GPTBot') ?? $userAgents->get('gptbot');
+        $this->assertNotNull($gptBot, 'GPTBot should be found');
+        $this->assertNotNull($gptBot['category'], 'GPTBot category should be populated (priority agent)');
+        $this->assertNotNull($gptBot['description'], 'GPTBot description should be populated (priority agent)');
+    }
+
+    /**
+     * A priority=0 agent is still recognised through the lazy-load path.
+     *
+     * Manus-User has priority=0 in agents.json – it must NOT be in the eager dataset
+     * but must be resolved correctly when encountered in robots.txt.
+     */
+    public function testNonPriorityAgentIsRecognisedLazily(): void
+    {
+        $parser = new RobotsTxtParser();
+
+        // Verify Manus-User is not in the eager dataset
+        $inEager = $parser->agentsDataset->contains(
+            fn ($a) => strtolower($a['agent']) === 'manus-user'
+        );
+        $this->assertFalse($inEager, 'Manus-User (priority=0) must NOT be in the eager dataset');
+
+        // Parse a robots.txt that references Manus-User → triggers lazy load
+        $response = $parser->parseText("User-agent: Manus-User\nDisallow: /private\n");
+        $records = $response->records();
+
+        $userAgents = $records->userAgents();
+        $manusUser = $userAgents->get('Manus-User') ?? $userAgents->get('manus-user');
+        $this->assertNotNull($manusUser, 'Manus-User should be found via the lazy-load path');
+        $this->assertNotNull($manusUser['category'], 'Manus-User category should be populated (lazy-load)');
+        $this->assertNotNull($manusUser['description'], 'Manus-User description should be populated (lazy-load)');
+    }
+
+    /**
+     * The lazy dataset is loaded only once even when multiple unknown agents are encountered.
+     * This is a behaviour test: parsing two priority=0 agents still produces two recognised results.
+     */
+    public function testLazyLoadOccursOnlyOnceForMultipleNonPriorityAgents(): void
+    {
+        $parser = new RobotsTxtParser();
+
+        // Both Manus-User and Novaact have priority=0
+        $robotsContent = "User-agent: Manus-User\nDisallow: /a\n\nUser-agent: NovaAct\nDisallow: /b\n";
+        $response = $parser->parseText($robotsContent);
+        $records = $response->records();
+
+        $userAgents = $records->userAgents();
+        $this->assertGreaterThanOrEqual(2, $userAgents->count());
+
+        // Both should be recognised (category not null)
+        $manusUser = $userAgents->get('Manus-User') ?? $userAgents->get('manus-user');
+        $novaAct = $userAgents->get('NovaAct') ?? $userAgents->get('novaact');
+
+        $this->assertNotNull($manusUser);
+        $this->assertNotNull($novaAct);
+        $this->assertNotNull($manusUser['category']);
+        $this->assertNotNull($novaAct['category']);
+    }
 }
+

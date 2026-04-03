@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Leopoletto\RobotsTxtParser\Collection\RobotsCollection;
 use Leopoletto\RobotsTxtParser\Contract\RobotsLineInterface;
 use Leopoletto\RobotsTxtParser\Records\Comment;
+use Leopoletto\RobotsTxtParser\Records\Content;
 use Leopoletto\RobotsTxtParser\Records\HeaderDirective;
 use Leopoletto\RobotsTxtParser\Records\MetaDirective;
 use Leopoletto\RobotsTxtParser\Records\RobotsDirective;
@@ -29,9 +30,21 @@ class RobotsTxtParser
     /** @var array<UserAgent> */
     private array $currentUserAgents = [];
     public ?RobotsDirective $currentDirective = null;
+
+    /** Priority agents (priority=1) — loaded eagerly */
     public Collection $agentsDataset;
 
+    /** Full agents dataset — loaded lazily on first cache miss */
+    private ?Collection $allAgentsDataset = null;
+
+    /** Whether the full dataset has been loaded from disk */
+    private bool $allAgentsLoaded = false;
+
     private Client $httpClient;
+
+    public bool $loadContent = false;
+
+    public ?string $content = null;
 
     /**
      * Anatomy: Mozilla/5.0 (compatible; Bot Name/Version; Url)
@@ -76,7 +89,11 @@ class RobotsTxtParser
             return;
         }
 
-        $this->agentsDataset = new Collection($decoded ?? []);
+        // Eagerly load only priority agents (priority=1); the rest are loaded lazily.
+        $all = $decoded ?? [];
+        $this->agentsDataset = new Collection(
+            array_values(array_filter($all, fn ($a) => ($a['priority'] ?? 0) === 1))
+        );
     }
 
     /**
@@ -106,6 +123,65 @@ class RobotsTxtParser
         }
 
         return $this->userAgent;
+    }
+
+    public function loadContent(bool $loadContent): self
+    {
+        $this->loadContent = $loadContent;
+
+        return $this;
+    }
+
+    /**
+     * Resolve an agent by name, checking the priority dataset first and falling
+     * back to the full dataset (loaded lazily from disk) on a cache miss.
+     */
+    private function resolveAgent(string $agentName): ?array
+    {
+        // 1. Check the priority (eagerly-loaded) dataset first.
+        $agent = $this->agentsDataset->first(
+            fn ($a) => strtolower($a['agent']) === strtolower($agentName)
+        );
+
+        if ($agent !== null) {
+            return $agent;
+        }
+
+        // 2. Lazy-load the full dataset on the first miss.
+        if (! $this->allAgentsLoaded) {
+            $this->allAgentsLoaded = true;
+            $agentsFilePath = __DIR__ . '/data/agents.json';
+
+            if (file_exists($agentsFilePath)) {
+                $raw = file_get_contents($agentsFilePath);
+                if ($raw !== false) {
+                    $decoded = json_decode($raw, true);
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        // Exclude entries already in the priority dataset to avoid duplicates.
+                        $priorityAgentNames = $this->agentsDataset
+                            ->pluck('agent')
+                            ->map(fn ($n) => strtolower($n))
+                            ->all();
+
+                        $rest = array_values(array_filter(
+                            $decoded ?? [],
+                            fn ($a) => ! in_array(strtolower($a['agent'] ?? ''), $priorityAgentNames, true)
+                        ));
+
+                        $this->allAgentsDataset = new Collection($rest);
+                    }
+                }
+            }
+
+            if ($this->allAgentsDataset === null) {
+                $this->allAgentsDataset = new Collection([]);
+            }
+        }
+
+        // 3. Search the lazily-loaded remainder.
+        return $this->allAgentsDataset?->first(
+            fn ($a) => strtolower($a['agent']) === strtolower($agentName)
+        );
     }
 
     /**
@@ -227,6 +303,8 @@ class RobotsTxtParser
 
             // Parse robots.txt content (stream reading line by line)
             $body = $robotsResponse->getBody();
+            // Reset content for this parse run.
+            $this->content = $this->loadContent ? '' : null;
             $contentSize = 0;
             $buffer = '';
             $lineNumber = 0;
@@ -265,6 +343,11 @@ class RobotsTxtParser
 
                     $lineNumber++;
                     $line = rtrim($line, "\r\n");
+
+                    // Accumulate raw content when requested.
+                    if ($this->loadContent) {
+                        $this->content .= $line . "\n";
+                    }
 
                     // Skip empty lines
                     if (trim($line) === '') {
@@ -339,7 +422,7 @@ class RobotsTxtParser
 
         } catch (RequestException $e) {
             // Continue even if robots.txt download fails - return whatever we collected
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             // Re-throw size limit exceptions and other critical errors
             throw $e;
         }
@@ -360,11 +443,11 @@ class RobotsTxtParser
         $this->currentDirective = null;
 
         if (! file_exists($filePath)) {
-            throw new \RuntimeException("File not found: {$filePath}");
+            throw new RuntimeException("File not found: {$filePath}");
         }
 
         if (! is_readable($filePath)) {
-            throw new \RuntimeException("File is not readable: {$filePath}");
+            throw new RuntimeException("File is not readable: {$filePath}");
         }
 
         $fileSize = filesize($filePath);
@@ -377,13 +460,20 @@ class RobotsTxtParser
         // Read file line by line to save memory
         $handle = fopen($filePath, 'r');
         if ($handle === false) {
-            throw new \RuntimeException("Could not open file: {$filePath}");
+            throw new RuntimeException("Could not open file: {$filePath}");
         }
 
+        // Reset content for this parse run.
+        $this->content = $this->loadContent ? '' : null;
 
         while (($line = fgets($handle)) !== false) {
             $lineNumber++;
             $line = rtrim($line, "\r\n");
+
+            // Accumulate raw content when requested.
+            if ($this->loadContent) {
+                $this->content .= $line . "\r\n";
+            }
 
             // Skip empty lines
             if (trim($line) === '') {
@@ -392,6 +482,7 @@ class RobotsTxtParser
 
             // Parse the line
             $unmodifiedLine = $line;
+           
             $parsed = $this->parseLine($line, $lineNumber, $unmodifiedLine);
             if ($parsed !== null) {
                 if ($parsed instanceof UserAgent) {
@@ -442,7 +533,7 @@ class RobotsTxtParser
         // Use string stream for memory-efficient line-by-line processing
         $handle = fopen('php://memory', 'r+');
         if ($handle === false) {
-            throw new \RuntimeException('Could not create memory stream');
+            throw new RuntimeException('Could not create memory stream');
         }
 
         fwrite($handle, $content);
@@ -451,9 +542,15 @@ class RobotsTxtParser
         // Free original content immediately
         unset($content);
 
+        // Reset content for this parse run.
+        $this->content = $this->loadContent ? '' : null;
+
         $lines = [];
         $firstLine = null;
         while (($line = fgets($handle)) !== false) {
+            if ($this->loadContent) {
+                $this->content .= $line;
+            }
             if ($firstLine !== null && str_ends_with($line, $firstLine)) {
                 continue;
             }
@@ -501,6 +598,8 @@ class RobotsTxtParser
 
         fclose($handle);
 
+        
+
         return new Response($records, $size);
     }
 
@@ -525,12 +624,7 @@ class RobotsTxtParser
 
         // Parse user agent
         if (UserAgent::isUserAgent($line)) {
-            return UserAgent::parse(
-                line: $line,
-                lineNumber: $lineNumber,
-                originalDeclaredAgentName: $unmodifiedLine,
-                agentsDataset: $this->agentsDataset
-            );
+            return $this->parseUserAgent($line, $lineNumber, $unmodifiedLine);
         }
 
         // Parse directive (must follow a user agent)
@@ -545,6 +639,30 @@ class RobotsTxtParser
         }
 
         return null;
+    }
+
+    /**
+     * Parse a user-agent line, resolving bot metadata via the lazy-loading resolver.
+     * Delegates to UserAgent::parse() so that class stays fully unchanged and interface-safe.
+     */
+    private function parseUserAgent(string $line, int $lineNumber, string $unmodifiedLine): ?UserAgent
+    {
+        $agentName = trim(explode(':', $unmodifiedLine, 2)[1] ?? '');
+        if ($agentName === '') {
+            return null;
+        }
+
+        $agentData = $this->resolveAgent($agentName);
+
+        // Build a single-item Collection so UserAgent::parse() works as-is.
+        $singleItemDataset = new Collection($agentData !== null ? [$agentData] : []);
+
+        return UserAgent::parse(
+            line: $line,
+            lineNumber: $lineNumber,
+            originalDeclaredAgentName: $unmodifiedLine,
+            agentsDataset: $singleItemDataset,
+        );
     }
 
     /**
