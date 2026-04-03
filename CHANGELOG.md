@@ -2,6 +2,14 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.3.0 - 2026-04-03
+
+Update version to 2.3.0 and enhance RobotsTxtParser with content loading capabilities
+
+- Updated the package version in composer.json to 2.3.0.
+- Introduced a new feature in RobotsTxtParser to optionally load and store the raw content of robots.txt files during parsing.
+- Added tests to verify the functionality of the new content loading feature, ensuring it behaves correctly across different parsing methods.
+
 ## v2.1.2 - 2026-03-31
 
 Refactor RobotsTxtParser to clarify page size handling in comments
