@@ -2,6 +2,14 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.4.0 - 2026-04-04
+
+Update version to 2.4.0 and enhance Response handling in RobotsTxtParser
+
+- Updated the package version in composer.json to 2.4.0.
+- Modified the Response class to include additional properties: finalUrl, redirects, and statusCode.
+- Updated the RobotsTxtParser to populate these new properties based on the HTTP response received during parsing.
+
 ## v2.3.0 - 2026-04-03
 
 Update version to 2.3.0 and enhance RobotsTxtParser with content loading capabilities
