@@ -198,6 +198,11 @@ class RobotsTxtParser
         $userAgent = $this->getUserAgent();
         $isNotRobotsTxt = ! str_ends_with($url, 'robots.txt');
 
+        // HTTP metadata to expose on the Response
+        $finalUrl = null;
+        $redirects = [];
+        $statusCode = null;
+
         // Reset parser state
         $this->currentUserAgents = [];
         $this->currentDirective = null;
@@ -285,12 +290,20 @@ class RobotsTxtParser
 
             if ($robotsResponse->getHeader('X-Guzzle-Redirect-History')) {
                 $redirectHistory = $robotsResponse->getHeader('X-Guzzle-Redirect-History');
+                $redirects = $redirectHistory;
                 if (count($redirectHistory) >= self::MAX_REDIRECTS) {
                     $records->push(new SyntaxError(0, 'Redirect chain exceeds ' . self::MAX_REDIRECTS . ' redirects limit'));
 
-                    return new Response($records, $size);
+                    return new Response($records, $size, $robotsUrl, $redirects, $robotsResponse->getStatusCode());
                 }
             }
+
+            $statusCode = $robotsResponse->getStatusCode();
+            // Final URL is the last URL in the redirect chain, or the robots.txt URL itself
+            $redirectStatusHistory = $robotsResponse->getHeader('X-Guzzle-Redirect-History');
+            $finalUrl = ! empty($redirectStatusHistory)
+                ? end($redirectStatusHistory)
+                : $robotsUrl;
 
             // Get X-Robots-Tag headers from robots.txt response (if any)
             $xRobotsTags = $robotsResponse->getHeader('X-Robots-Tag');
@@ -427,7 +440,7 @@ class RobotsTxtParser
             throw $e;
         }
 
-        return new Response($records, $size);
+        return new Response($records, $size, $finalUrl, $redirects, $statusCode);
     }
 
     /**
