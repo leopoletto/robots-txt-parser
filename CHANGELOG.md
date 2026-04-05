@@ -2,6 +2,14 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v2.5.0 - 2026-04-05
+
+Update version to 2.5.0 and refactor RobotsTxtParser for improved meta tag handling
+
+- Updated the package version in composer.json to 2.5.0.
+- Refactored the RobotsTxtParser to streamline the process of fetching X-Robots-Tag headers and meta tags, enhancing the logic for handling requests and responses.
+- Improved memory management during HTML content processing.
+
 ## v2.4.0 - 2026-04-04
 
 Update version to 2.4.0 and enhance Response handling in RobotsTxtParser
