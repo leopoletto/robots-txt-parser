@@ -207,72 +207,7 @@ class RobotsTxtParser
         $this->currentUserAgents = [];
         $this->currentDirective = null;
 
-        // Step 1: Request the given URL to get X-Robots-Tag headers and meta tags
-        if ($isNotRobotsTxt) {
-            try {
-                $pageResponse = $this->httpClient->get($url, [
-                    RequestOptions::HEADERS => [
-                        'User-Agent' => $userAgent,
-                    ],
-                    RequestOptions::TIMEOUT => self::TIMEOUT_URL,
-                ]);
-
-                $statusCode = $pageResponse->getStatusCode();
-
-                // Get X-Robots-Tag headers from the page response
-                $xRobotsTags = $pageResponse->getHeader('X-Robots-Tag');
-                if (! empty($xRobotsTags)) {
-                    $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
-                    if (! empty($headerDirectives)) {
-                        $records->push(new HeaderDirective($headerDirectives));
-                    }
-                }
-
-                // Get meta tags from HTML (stream read with limit)
-                if ($statusCode === 200) {
-                    $body = $pageResponse->getBody();
-                    $html = '';
-                    $htmlSize = 0;
-
-                    // Only read first part of HTML (meta tags are in <head>, usually first 100KB)
-                    // But limit to 5MB to be safe
-                    while (! $body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
-                        $chunk = $body->read(self::CHUNK_SIZE);
-
-                        // Break if we get an empty chunk (no more data)
-                        if ($chunk === '' || $chunk === false) {
-                            break;
-                        }
-
-                        $html .= $chunk;
-                        $htmlSize += strlen($chunk);
-                    }
-
-                    // Ensure stream is closed
-                    try {
-                        $body->close();
-                    } catch (\Exception $e) {
-                        // Ignore close errors
-                    }
-
-                    $metaDirectives = MetaDirective::parseMetaTags($html);
-
-                    // Push each directive individually
-                    foreach ($metaDirectives as $directive) {
-                        $records->push(new MetaDirective($directive));
-                    }
-
-                    // Page size is not counted — size() reflects only the robots.txt response
-
-                    // Free memory
-                    unset($html, $body);
-                }
-            } catch (RequestException $e) {
-                // Continue even if page request fails - we still have robots.txt to parse
-            }
-        }
-
-        // Step 2: Download robots.txt (regardless of whether page request succeeded)
+        // Step 1: Download robots.txt (regardless of whether page request succeeded)
         try {
             $robotsResponse = $this->httpClient->get($robotsUrl, [
                 RequestOptions::HEADERS => [
@@ -438,6 +373,85 @@ class RobotsTxtParser
         } catch (RuntimeException $e) {
             // Re-throw size limit exceptions and other critical errors
             throw $e;
+        }
+
+        // Step 2: Request the given URL to get X-Robots-Tag headers and meta tags
+        if ($isNotRobotsTxt) {
+            $path = parse_url($url, PHP_URL_PATH) ?? '/';
+            $query = parse_url($url, PHP_URL_QUERY);
+            if (! empty($query)) {
+                $path .= '?' . $query;
+            }
+
+            // Extract exact bot name for checking rules
+            $botName = $userAgent;
+            if (preg_match('/compatible;\s*([^;\/]+)/i', $userAgent, $matches)) {
+                $botName = trim($matches[1]);
+            }
+
+            if ($records->isAllowed($botName, $path)) {
+                try {
+                    $pageResponse = $this->httpClient->get($url, [
+                        RequestOptions::HEADERS => [
+                            'User-Agent' => $userAgent,
+                        ],
+                        RequestOptions::TIMEOUT => self::TIMEOUT_URL,
+                    ]);
+
+                    $statusCode = $pageResponse->getStatusCode();
+
+                    // Get X-Robots-Tag headers from the page response
+                    $xRobotsTags = $pageResponse->getHeader('X-Robots-Tag');
+                    if (! empty($xRobotsTags)) {
+                        $headerDirectives = HeaderDirective::parseXRobotsTagHeaders($xRobotsTags);
+                        if (! empty($headerDirectives)) {
+                            $records->push(new HeaderDirective($headerDirectives));
+                        }
+                    }
+
+                    // Get meta tags from HTML (stream read with limit)
+                    if ($statusCode === 200) {
+                        $body = $pageResponse->getBody();
+                        $html = '';
+                        $htmlSize = 0;
+
+                        // Only read first part of HTML (meta tags are in <head>, usually first 100KB)
+                        // But limit to 5MB to be safe
+                        while (! $body->eof() && $htmlSize < self::MAX_HTML_SIZE) {
+                            $chunk = $body->read(self::CHUNK_SIZE);
+
+                            // Break if we get an empty chunk (no more data)
+                            if ($chunk === '' || $chunk === false) {
+                                break;
+                            }
+
+                            $html .= $chunk;
+                            $htmlSize += strlen($chunk);
+                        }
+
+                        // Ensure stream is closed
+                        try {
+                            $body->close();
+                        } catch (\Exception $e) {
+                            // Ignore close errors
+                        }
+
+                        $metaDirectives = MetaDirective::parseMetaTags($html);
+
+                        // Push each directive individually
+                        foreach ($metaDirectives as $directive) {
+                            $records->push(new MetaDirective($directive));
+                        }
+
+                        // Page size is not counted — size() reflects only the robots.txt response
+
+                        // Free memory
+                        unset($html, $body);
+                    }
+                } catch (RequestException $e) {
+                    // Continue even if page request fails - we still have robots.txt to parse
+                }
+            }
         }
 
         return new Response($records, $size, $finalUrl, $redirects, $statusCode);
