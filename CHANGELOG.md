@@ -2,6 +2,22 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v3.0.1 - 2026-09-05
+
+Documentation only. No code changes, so upgrading from 3.0.0 is optional.
+
+### Fixed
+
+- The README shipped in the 3.0.0 archive was the one written before the audit
+  existed: no mention of `Audit\Auditor`, and an issues table that both omitted
+  types and wrongly described non-standard fields as accepted in silence. It was
+  updated on `main` shortly after 3.0.0 was tagged, so the tag missed it.
+
+Now documented: auditing (findings, statuses, the nine checks, crawler groups by
+purpose, sitemap probing, the category breakdown, writing a check), the crawler
+list and how to regenerate it from Cloudflare Radar, and a corrected issues table
+that separates defects in the document from notes about the request itself.
+
 ## v3.0.0 - 2026-09-05
 
 A full rewrite. The package is now modular, framework-free and statically analysed, and the three
