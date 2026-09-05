@@ -15,8 +15,10 @@ final readonly class Report
     /**
      * @param list<Finding> $findings
      */
-    public function __construct(public array $findings)
-    {
+    public function __construct(
+        public array $findings,
+        public ?CategoryBreakdown $breakdown = null,
+    ) {
     }
 
     /**
@@ -101,6 +103,7 @@ final readonly class Report
             'status' => $this->worst()->value,
             'counts' => $this->counts(),
             'findings' => array_map(static fn (Finding $f): array => $f->toArray(), $this->findings),
+            'breakdown' => $this->breakdown?->toArray(),
         ];
     }
 }

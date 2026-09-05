@@ -228,4 +228,70 @@ final class AuditorTest extends TestCase
         $this->assertNotEmpty($array['findings']);
         $this->assertArrayHasKey('fix', $array['findings'][0]);
     }
+
+    #[Test]
+    public function it_groups_declared_agents_by_what_they_are_for(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: Googlebot
+            Disallow:
+
+            User-agent: GPTBot
+            User-agent: ClaudeBot
+            Disallow: /
+            TXT);
+
+        $breakdown = $report->breakdown;
+        $this->assertNotNull($breakdown);
+        $this->assertSame(3, $breakdown->declared);
+
+        $blocked = array_map(
+            static fn ($t): string => $t->category,
+            $breakdown->fullyBlocked(),
+        );
+        $this->assertContains('AI Data Scraper', $blocked);
+
+        $allowed = array_map(
+            static fn ($t): string => $t->category,
+            $breakdown->fullyAllowed(),
+        );
+        $this->assertContains('Search Engine Crawler', $allowed);
+    }
+
+    #[Test]
+    public function the_breakdown_counts_a_repeated_agent_once(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: GPTBot
+            Disallow: /a
+
+            User-agent: GPTBot
+            Disallow: /b
+            TXT);
+
+        $this->assertSame(1, $report->breakdown?->declared);
+    }
+
+    #[Test]
+    public function the_breakdown_names_the_wildcard_group_plainly(): void
+    {
+        $report = $this->audit("User-agent: *\nDisallow: /");
+
+        $categories = array_map(
+            static fn ($t): string => $t->category,
+            (array) $report->breakdown?->categories,
+        );
+
+        $this->assertContains('Every other crawler', $categories);
+    }
+
+    #[Test]
+    public function the_breakdown_describes_each_category(): void
+    {
+        $report = $this->audit("User-agent: GPTBot\nUser-agent: ClaudeBot\nDisallow: /");
+
+        $tally = (array) $report->breakdown?->fullyBlocked();
+        $this->assertNotEmpty($tally);
+        $this->assertSame('all 2 blocked', $tally[0]->describe());
+    }
 }

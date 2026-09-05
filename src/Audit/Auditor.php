@@ -64,6 +64,8 @@ final class Auditor
         // Most severe first, so the report opens on what is worth fixing.
         usort($findings, static fn (Finding $a, Finding $b): int => $b->status->weight() <=> $a->status->weight());
 
-        return new Report($findings);
+        // The findings judge the crawlers that matter; the breakdown describes
+        // how the file treats everything it actually names.
+        return new Report($findings, CategoryBreakdown::of($response->document()));
     }
 }
