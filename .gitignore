@@ -34,3 +34,4 @@ testbench.yaml
 /.github/SETUP.md
 # Local scratch
 .phpunit.cache/
+.DS_Store
