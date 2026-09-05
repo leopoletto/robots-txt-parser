@@ -25,11 +25,12 @@ final class UnknownFieldParser implements LineParser
      * major crawler, and so are not worth flagging.
      */
     private const TOLERATED_FIELDS = [
-        'host',          // Yandex: preferred mirror
-        'clean-param',   // Yandex: ignorable query parameters
-        'request-rate',  // legacy rate limiting
-        'visit-time',    // legacy crawl window
-        'noindex',       // historic Google extension
+        'host',           // Yandex: preferred mirror
+        'clean-param',    // Yandex: ignorable query parameters
+        'request-rate',   // legacy rate limiting
+        'visit-time',     // legacy crawl window
+        'noindex',        // historic Google extension
+        'content-signal', // Cloudflare: ai-train / search / ai-input policy
     ];
 
     public function supports(Token $token): bool

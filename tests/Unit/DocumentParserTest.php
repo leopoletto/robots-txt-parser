@@ -136,6 +136,16 @@ final class DocumentParserTest extends TestCase
     }
 
     #[Test]
+    public function it_tolerates_the_content_signal_field(): void
+    {
+        // Cloudflare's AI-policy signal is deployed in the wild; flagging it as
+        // unknown would be noise on exactly the sites this package cares about.
+        $document = $this->parse("User-agent: *\nContent-Signal: ai-train=no, search=yes");
+
+        $this->assertSame([], $document->issues());
+    }
+
+    #[Test]
     public function it_reports_a_non_numeric_crawl_delay(): void
     {
         $document = $this->parse("User-agent: *\nCrawl-delay: soon");
