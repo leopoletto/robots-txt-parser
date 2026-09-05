@@ -26,13 +26,19 @@
 
 declare(strict_types=1);
 
+use Leopoletto\RobotsTxtParser\Http\BotSignature;
 use Leopoletto\RobotsTxtParser\RobotsTxtParser;
 
 require __DIR__ . '/../vendor/autoload.php';
 
 const BASE_URL = 'https://knownagents.com';
 const SITEMAP_URL = BASE_URL . '/sitemap.xml';
-const VERSION = '3.0';
+
+// This script's own identity. The library itself ships no default user agent —
+// every consumer must declare one — so the maintenance tooling declares its own.
+const BOT_NAME = 'RobotsTxtParser';
+const BOT_VERSION = '3.0';
+const BOT_URL = 'https://github.com/leopoletto/robots-txt-parser';
 
 $options = getopt('', ['refresh', 'dry-run', 'limit::', 'delay::', 'source::']);
 $refresh = isset($options['refresh']);
@@ -41,27 +47,25 @@ $limit = isset($options['limit']) ? max(0, (int) $options['limit']) : null;
 $delayMs = isset($options['delay']) ? max(0, (int) $options['delay']) : 350;
 $sourcePath = $options['source'] ?? __DIR__ . '/../src/data/agents.source.json';
 
-$userAgent = sprintf(
-    'Mozilla/5.0 (compatible; RobotsTxtParser/%s; +https://github.com/leopoletto/robots-txt-parser)',
-    VERSION
-);
+$signature = BotSignature::of(BOT_NAME, BOT_VERSION, BOT_URL);
+$userAgent = $signature->value;
 
 // ---------------------------------------------------------------- permission
 
 info('Checking ' . BASE_URL . '/robots.txt');
 
-$parser = (new RobotsTxtParser())->withUserAgent($userAgent);
+$parser = (new RobotsTxtParser())->withBotSignature(BOT_NAME, BOT_VERSION, BOT_URL);
 $robots = $parser->parseUrl(BASE_URL . '/agents');
 
 if ($robots->error() !== null) {
     fail('Could not read robots.txt: ' . $robots->error());
 }
 
-if (! $robots->document()->isAllowed('RobotsTxtParser', '/agents/')) {
+if (! $robots->document()->isAllowed($signature->productToken, '/agents/')) {
     fail('robots.txt disallows /agents/ for this bot. Stopping.');
 }
 
-foreach ($robots->document()->crawlDelay('RobotsTxtParser') as $directive) {
+foreach ($robots->document()->crawlDelay($signature->productToken) as $directive) {
     $declared = (int) round(($directive->delay() ?? 0) * 1000);
     if ($declared > $delayMs) {
         $delayMs = $declared;
