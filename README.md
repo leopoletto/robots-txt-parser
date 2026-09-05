@@ -1,609 +1,344 @@
-# Robots TXT Parser
+# Robots.txt Parser
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/leopoletto/robots-txt-parser.svg?style=flat-square)](https://packagist.org/packages/leopoletto/robots-txt-parser)
-[![Tests](https://img.shields.io/github/actions/workflow/status/leopoletto/robots-txt-parser/run-tests-phpunit.yml?branch=main&label=tests&style=flat-square)](https://github.com/leopoletto/robots-txt-parser/actions/workflows/run-tests-phpunit.yml)
-[![Total Downloads](https://img.shields.io/packagist/dt/leopoletto/robots-txt-parser.svg?style=flat-square)](https://packagist.org/packages/leopoletto/robots-txt-parser)
+[![Tests](https://github.com/leopoletto/robots-txt-parser/actions/workflows/run-tests-phpunit.yml/badge.svg)](https://github.com/leopoletto/robots-txt-parser/actions/workflows/run-tests-phpunit.yml)
+[![Latest Version](https://img.shields.io/packagist/v/leopoletto/robots-txt-parser.svg)](https://packagist.org/packages/leopoletto/robots-txt-parser)
+[![License](https://img.shields.io/packagist/l/leopoletto/robots-txt-parser.svg)](LICENSE.md)
 
-A comprehensive PHP package for parsing and analyzing robots.txt files. This library is designed to help you understand the structure and content of robots.txt files, including support for X-Robots-Tag HTTP headers and meta tags from HTML pages.
+A PHP library for parsing and analysing `robots.txt` — from a URL, a file, or a string — including
+the robots `<meta>` tags and `X-Robots-Tag` headers that govern indexing alongside it.
 
-> **Note**: This library is designed for **parsing and analyzing** robots.txt files to understand their structure. It also provides methods to **check if a user agent is allowed to access a specific path** using the `uaAllowed()` and `isAllowed()` methods.
+Built for analysis rather than crawling: it reports what a document *says*, what is *wrong* with it,
+and *why* a given rule applies to a given URL.
+
+```php
+use Leopoletto\RobotsTxtParser\RobotsTxtParser;
+
+$response = (new RobotsTxtParser())
+    ->withBotSignature('MyBot', '1.0', 'https://example.com/bot')
+    ->parseUrl('https://example.com/products/widget');
+
+$response->isAllowed('GPTBot', '/products/widget');   // false
+$response->records()->userAgents();                    // list<UserAgent>
+$response->records()->issues();                        // list<Issue>
+```
 
 ## Installation
-
-Install via Composer:
 
 ```bash
 composer require leopoletto/robots-txt-parser
 ```
 
-## Requirements
+Requires PHP 8.2+. The only runtime dependencies are Guzzle and PSR-7 — no framework.
 
-- PHP 8.2 or higher
+## Parsing
 
-### Dependencies
-
-- Guzzle HTTP Client
-- Illuminate Collections
-
-## Quick Start
-
-```php
-use Leopoletto\RobotsTxtParser\RobotsTxtParser;
-
-// Instantiate the parser
-$parser = new RobotsTxtParser();
-
-// Configure your bot's user agent (required for parseUrl)
-$parser->configureUserAgent('MyBot', '1.0', 'https://example.com/mybot');
-
-// Parse from URL
-$response = $parser->parseUrl('https://example.com');
-```
-
-## Configuration
-
-Before parsing from a URL, you must configure your bot's user agent. This is used when making HTTP requests.
-
-### Method 1: Using `configureUserAgent()`
-
-```php
-$parser->configureUserAgent('BotName', '1.0', 'https://example.com/bot');
-// Results in: Mozilla/5.0 (compatible; BotName/1.0; https://example.com/bot)
-```
-
-### Method 2: Using `setUserAgent()`
-
-```php
-$parser->setUserAgent('MyCustomUserAgent/1.0');
-```
-
-## Parsing Methods
-
-The library provides three methods for parsing robots.txt content:
-
-### 1. Parse from URL (`parseUrl`)
-
-Parses robots.txt from a URL and also extracts:
-
-- **X-Robots-Tag** HTTP headers from the robots.txt response
-- **Meta tags** (robots, googlebot, googlebot-news) from the HTML page if a non-robots.txt URL is provided
+The three entry points behave identically. The same document produces the same records, the same
+line numbers and the same issues whether it was fetched, uploaded or pasted.
 
 ```php
 $parser = new RobotsTxtParser();
-$parser->configureUserAgent('MyBot', '1.0', 'https://example.com');
 
-// Parse from any URL (will automatically fetch /robots.txt)
-$response = $parser->parseUrl('https://example.com');
-// or
-$response = $parser->parseUrl('https://example.com/robots.txt');
+$parser->parseText($contents);
+$parser->parseFile('/path/to/robots.txt');
 
-$records = $response->records();
+$parser->withBotSignature('MyBot', '1.0', 'https://example.com/bot')
+       ->parseUrl('https://example.com/some/page');
 ```
 
-**What `parseUrl` returns:**
+### Identifying your bot
 
-- All robots.txt directives (User-agent, Allow, Disallow, Crawl-delay, Sitemap)
-- X-Robots-Tag headers from the robots.txt response
-- Meta tags from the HTML page (if parsing a non-robots.txt URL)
-- Comments and syntax errors
-
-### 2. Parse from File (`parseFile`)
-
-Parses a robots.txt file from the local filesystem.
+`parseUrl()` makes real HTTP requests, so it requires an identity:
 
 ```php
-$parser = new RobotsTxtParser();
-$response = $parser->parseFile('/path/to/robots.txt');
+$parser->withBotSignature('MyBot', '1.0', 'https://example.com/bot');
+// Mozilla/5.0 (compatible; MyBot/1.0; https://example.com/bot)
 
-$records = $response->records();
+$parser->withUserAgent('MyBot/1.0 (+https://example.com/bot)');
 ```
 
-### 3. Parse from Text (`parseText`)
+The product token (`MyBot`) is also what the parser checks its *own* access against — see
+[Fetching behaviour](#fetching-behaviour).
 
-Parses robots.txt content directly from a string.
+### Keeping the original document
 
 ```php
-$parser = new RobotsTxtParser();
-$content = "User-agent: *\nDisallow: /admin/";
-$response = $parser->parseText($content);
-
-$records = $response->records();
+$response = $parser->keepContent()->parseText($contents);
+$response->content(); // the document, with line endings normalised to \n
 ```
 
-## Accessing Parsed Data
+## Reading a document
 
-All parsing methods return a `Response` object with the following methods:
-
-### Basic Information
+`$response->records()` returns a `Document`. Every method on it is pure — nothing carries state
+between calls.
 
 ```php
-$response = $parser->parseUrl('https://example.com');
+$document = $response->records();
 
-// Get the size of the parsed content in bytes
-$size = $response->size();
+$document->userAgents();        // list<UserAgent>
+$document->groups();            // list<Group>
+$document->sitemaps();          // list<Sitemap>
+$document->comments();          // list<Comment>
+$document->issues();            // list<Issue>
+$document->headerDirectives();  // list<HeaderDirective>
+$document->metaDirectives();    // list<MetaDirective>
 
-// Get all records as a collection
-$records = $response->records();
+$document->allowed();           // every Allow rule
+$document->disallowed('GPTBot');// Disallow rules governing GPTBot
+$document->crawlDelay('GPTBot');
 
-// Get total number of records
-$totalLines = $records->lines();
+$document->toArray();           // JSON-ready summary of everything
 ```
 
-### User Agents
+Every record exposes `line()` and `toArray()`, so rendering a document is uniform.
 
-Get all user agents and their directives:
+### Groups
+
+A group is one or more consecutive `User-agent:` lines plus the directives that follow, per
+[RFC 9309 §2.2.1](https://www.rfc-editor.org/rfc/rfc9309.html#section-2.2.1).
+
+```
+User-agent: GPTBot
+User-agent: ChatGPT-User
+Disallow: /admin
+```
+
+Both agents share the one rule, and the parser models that directly:
 
 ```php
-// Get all user agents
-$userAgents = $records->userAgents()->toArray();
-
-// Get a specific user agent
-$googlebot = $records->userAgents('Googlebot')->toArray();
+$group = $document->groupFor('ChatGPT-User');
+$group->tokens();            // ['GPTBot', 'ChatGPT-User']
+$group->directives();        // the rules governing both
 ```
 
-**Example output:**
+Comments and sitemaps between `User-agent:` lines do not break the run. A directive does.
 
-```json
-{
-    "*": {
-        "line": 19,
-        "userAgent": "*",
-        "description": null,
-        "category": null,
-        "allow": [
-            {
-                "line": 20,
-                "directive": "allow",
-                "path": "/researchtools/ose/$"
-            }
-        ],
-        "disallow": [
-            {
-                "line": 32,
-                "directive": "disallow",
-                "path": "/admin/"
-            }
-        ],
-        "crawlDelay": []
-    },
-    "GPTBot": {
-        "line": 11,
-        "userAgent": "GPTBot",
-        "description": "GPTBot is OpenAI's web crawler that collects data from publicly accessible web pages to improve AI models like ChatGPT, while respecting robots.txt and opt-out requests",
-        "category": "AI Data Scraper",
-        "allow": [],
-        "disallow": [
-            {
-                "line": 12,
-                "directive": "disallow",
-                "path": "/blog/"
-            }
-        ],
-        "crawlDelay": []
-    }
+## Checking access
+
+```php
+$document->isAllowed('GPTBot', '/admin/reports');   // false
+
+$decision = $document->decide('GPTBot', '/admin/reports');
+$decision->allowed;     // false
+$decision->rule->line;  // 4 — the rule that decided it
+$decision->rule->value; // '/admin'
+$decision->byDefault(); // false; true when no rule matched
+```
+
+Resolution follows [RFC 9309 §2.2.2](https://www.rfc-editor.org/rfc/rfc9309.html#section-2.2.2):
+
+- Groups naming the agent apply; **all** of them, if the document declares it more than once.
+- Only when no group names the agent does the `*` group apply.
+- The longest matching pattern wins.
+- At equal length the least restrictive rule wins — `Allow` beats `Disallow`.
+- `Disallow:` with an empty value forbids nothing.
+- Matching is case-insensitive on the agent, case-sensitive on the path.
+
+Patterns support `*` (any run of characters) and a trailing `$` (end anchor). Everything else is
+literal, including a `$` that is not the final character.
+
+### Explaining a rule
+
+```php
+$explanation = $document->disallowed('*')[0]->explanation();
+
+$explanation->specificity;  // 6
+$explanation->wildcards;    // 0
+$explanation->endAnchor;    // false
+$explanation->pathToMatch;  // 'Prefix match: any URL whose path starts with "/admin"…'
+```
+
+Explanations are built on first access, so a document with thousands of rules costs nothing unless
+something reads them. The structural fields are there for callers who want to write their own
+wording or translate it.
+
+## Issues
+
+Malformed and ineffective lines are reported rather than silently dropped — a misspelled
+`Dissalow:` is ignored by every real crawler, which is exactly the mistake worth surfacing.
+
+```php
+foreach ($document->issues() as $issue) {
+    $issue->line;             // 12
+    $issue->type;             // 'unknown_directive'
+    $issue->severity;         // Severity::Medium
+    $issue->message;
 }
 ```
 
-**Note:** The `description` and `category` fields are automatically populated for recognized bots from the built-in dataset. Unknown bots will have `null` values for these fields.
+| Type | Meaning |
+| --- | --- |
+| `unknown_directive` | A field no crawler will act on, usually a typo |
+| `orphan_directive` | A rule declared before any `User-agent:` |
+| `malformed_line` | A line with no `:` separator |
+| `invalid_path` | An `Allow`/`Disallow` value not starting with `/` |
+| `invalid_value` | A non-numeric `Crawl-delay` |
+| `truncated` | The document exceeded the size limit |
+| `page_disallowed` | The page was not fetched because robots.txt forbade it |
+| `fetch_failed` | The robots.txt could not be retrieved |
+| `too_many_redirects` | The redirect chain exceeded the limit |
 
-### Directives
+Non-standard but widely published fields (`Host`, `Clean-param`, `Request-rate`, `Visit-time`) are
+accepted without complaint.
 
-Get specific directive types:
+## Meta tags and X-Robots-Tag
 
-```php
-// Get all disallowed paths
-$disallowed = $records->disallowed()->toArray();
-
-// Get disallowed paths for a specific user agent
-$disallowed = $records->disallowed('Googlebot')->toArray();
-
-// Get all allowed paths
-$allowed = $records->allowed()->toArray();
-
-// Get crawl delays
-$crawlDelays = $records->crawlDelay()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "line": 32,
-        "directive": "disallow",
-        "path": "/admin/"
-    },
-    {
-        "line": 33,
-        "directive": "disallow",
-        "path": "/private/"
-    }
-]
-```
-
-### Display User Agent Information
-
-When you want to see which user agents apply to each directive:
+`parseUrl()` also collects the indexing directives that live outside robots.txt.
 
 ```php
-// Show user agents as an array for each directive
-$disallowed = $records->displayUserAgent()->disallowed()->toArray();
-```
+foreach ($document->metaDirectives() as $meta) {
+    $meta->name;                    // 'robots'
+    $meta->validation->has('noindex');
+    $meta->validation->conflicts;   // e.g. index + noindex
+}
 
-**Example output:**
-
-```json
-[
-    {
-        "line": 32,
-        "directive": "disallow",
-        "path": "/admin/",
-        "userAgent": ["*", "GPT-User"]
-    }
-]
-```
-
-When querying by a specific user agent with `displayUserAgent()`, directives are expanded:
-
-```php
-// Expand directives for all user agents in the same group
-$disallowed = $records->displayUserAgent()->disallowed('*')->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "line": 32,
-        "directive": "disallow",
-        "path": "/admin/",
-        "userAgent": "*"
-    },
-    {
-        "line": 32,
-        "directive": "disallow",
-        "path": "/admin/",
-        "userAgent": "GPT-User"
-    }
-]
-```
-
-### Sitemaps
-
-```php
-$sitemaps = $records->sitemaps()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "line": 52,
-        "url": "https://example.com/sitemap.xml",
-        "valid": true
-    }
-]
-```
-
-### Comments
-
-```php
-$comments = $records->comments()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "line": 1,
-        "comment": "File last updated May 5, 2025"
-    }
-]
-```
-
-### X-Robots-Tag Headers (from `parseUrl`)
-
-When parsing from a URL, you can access X-Robots-Tag HTTP headers. Each header is validated with conflict detection, redundancy analysis, and user agent validation:
-
-```php
-$headers = $records->headersDirectives()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "user_agent": "googlebot",
-        "user_agent_valid": true,
-        "raw": "googlebot: noindex, nofollow",
-        "directives": [
-            { "name": "noindex", "value": null, "type": "simple", "valid": true },
-            { "name": "nofollow", "value": null, "type": "simple", "valid": true }
-        ],
-        "valid": true,
-        "issues": [],
-        "conflicts": [],
-        "redundancies": [],
-        "is_full_spec": false
-    }
-]
-```
-
-### Meta Tags (from `parseUrl`)
-
-When parsing from a URL (non-robots.txt), you can access robots meta tags from the HTML. Supports `robots`, `googlebot`, `googlebot-news`, and `bingbot` meta tags with full validation:
-
-```php
-$metaTags = $records->metaTagsDirectives()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "tag_name": "robots",
-        "raw": "index, follow, max-image-preview:large",
-        "directives": [
-            { "name": "index", "value": null, "type": "simple", "valid": true },
-            { "name": "follow", "value": null, "type": "simple", "valid": true },
-            { "name": "max-image-preview", "value": "large", "type": "parametric", "valid": true }
-        ],
-        "valid": true,
-        "issues": [],
-        "conflicts": [],
-        "redundancies": [],
-        "is_full_spec": false
-    }
-]
-```
-
-### Syntax Errors
-
-Check for parsing errors:
-
-```php
-$errors = $records->syntaxErrors()->toArray();
-```
-
-**Example output:**
-
-```json
-[
-    {
-        "line": 5,
-        "message": "Directive must follow a user agent"
-    }
-]
-```
-
-### Checking Path Access
-
-Check if a specific user agent is allowed to access a path:
-
-```php
-// Check if GPTBot is allowed to access a specific path
-$isAllowed = $records->uaAllowed('GPTBot', '/ja-jp/community/search?q=hello');
-// Returns: false (if disallowed) or true (if allowed)
-
-// Alias method
-$isAllowed = $records->isAllowed('GPTBot', '/ko-kr/make/something');
-// Returns: true
-```
-
-**Features:**
-
-- **Case-insensitive user agent matching** - Works with any case variation
-- **Automatic wildcard fallback** - If the user agent doesn't exist, falls back to `*` rules
-- **Pattern matching support:**
-  - `*` wildcard - Matches any sequence of characters (can appear multiple times)
-  - `$` end anchor - Matches only at the end of the path
-- **Rule specificity** - More specific (longer) paths take precedence
-- **Default behavior** - Returns `true` (allowed) if no rules match
-
-**Examples:**
-
-```php
-$parser = new RobotsTxtParser();
-$robots = $parser->parseUrl('https://example.com/robots.txt');
-$records = $robots->records();
-
-// Check specific user agent
-$records->uaAllowed('GPTBot', '/allowed/path');     // true
-$records->uaAllowed('GPTBot', '/blocked/path');     // false
-
-// Falls back to wildcard if user agent not found
-$records->uaAllowed('UnknownBot', '/path');          // Uses * rules
-
-// Works with wildcard patterns
-// If robots.txt has: Disallow: /blog/*?s=*
-$records->uaAllowed('*', '/blog/article?s=test');  // false
-
-// Works with end anchor
-// If robots.txt has: Allow: /make/$
-$records->uaAllowed('*', '/make/');                 // true
-$records->uaAllowed('*', '/make/something');        // false
-```
-
-### Directive Validation
-
-The `DirectiveValidator` can be used standalone to validate directive strings. It recognizes all standard simple directives, parametric directives (`max-snippet`, `max-image-preview`, `max-video-preview`), and detects conflicts, redundancies, and deprecated directives.
-
-```php
-use Leopoletto\RobotsTxtParser\Validators\DirectiveValidator;
-
-$validator = new DirectiveValidator();
-
-// Validate a directive string
-$result = $validator->validate('index, noindex, max-snippet:150');
-```
-
-**Example output:**
-
-```json
-{
-    "raw": "index, noindex, max-snippet:150",
-    "source": "meta",
-    "user_agent": null,
-    "directives": [
-        { "name": "index", "value": null, "type": "simple", "valid": true },
-        { "name": "noindex", "value": null, "type": "simple", "valid": true },
-        { "name": "max-snippet", "value": "150", "type": "parametric", "valid": true }
-    ],
-    "valid": false,
-    "issues": [],
-    "conflicts": [
-        {
-            "directives": ["index", "noindex"],
-            "severity": "high",
-            "message": "Conflicting directives: index and noindex",
-            "resolution": "Most restrictive wins (noindex)"
-        }
-    ],
-    "redundancies": [],
-    "is_full_spec": false
+foreach ($document->headerDirectives() as $header) {
+    $header->userAgent;   // '*' or 'googlebot'
+    $header->origin;      // 'robots.txt' or 'page'
 }
 ```
 
-You can also validate user agents for X-Robots-Tag headers:
+Both sources combine into one answer, resolving toward the more restrictive reading:
 
 ```php
-$result = $validator->validateUserAgent('googlebot');
-// { "user_agent": "googlebot", "valid": true, "issues": [] }
-
-$result = $validator->validateUserAgent('unknownbot');
-// { "user_agent": "unknownbot", "valid": false, "issues": [{ "type": "unknown_user_agent", ... }] }
+$rules = $document->effectiveRules();
+$rules->indexable();   // false if anything said noindex
+$rules->followable();
+$rules->toArray();     // full effective_rules + source counts
 ```
 
-**Validation features:**
+## Fetching behaviour
 
-- **17 simple directives** recognized (index, noindex, follow, nofollow, nosnippet, noimageindex, noarchive, archive, notranslate, translate, all, none, nositelinkssearchbox, noodp, noydir)
-- **Parametric directives** validated: `max-snippet` (integer), `max-image-preview` (none/standard/large), `max-video-preview` (integer)
-- **Conflict detection** for contradictory pairs (index/noindex, follow/nofollow, nosnippet/max-snippet, all/none)
-- **Redundancy detection** for shorthand overlaps (e.g., `all` already includes `index`)
-- **Deprecation warnings** for `noodp` and `noydir`
-- **Full spec detection** when index + all three parametric directives are present
-- **Deduplication** of repeated directives
-- **Case insensitive** parsing
+Two rules govern `parseUrl()`, both deliberate:
 
-### Directive Merging
+**The robots.txt comes from the origin; the meta tags come from your URL.** robots.txt is
+per-origin, so it is always fetched from `scheme://host[:port]/robots.txt` — the port included.
+Meta tags and `X-Robots-Tag` are per-page, so those are read from the exact URL you passed, never
+the home page.
 
-The `RobotsMerger` combines meta tag and header directives into a single effective ruleset. Header directives are applied after meta directives, allowing headers to override meta tags.
+**If robots.txt disallows your URL, the page is not fetched.** A tool that reports on robots.txt has
+no business ignoring one. When this happens you get a `page_disallowed` issue and:
 
 ```php
-use Leopoletto\RobotsTxtParser\Helpers\RobotsMerger;
-
-$metaDirectives = $records->metaTagsDirectives()->toArray();
-$headerDirectives = $records->headersDirectives()->toArray();
-
-$merged = RobotsMerger::merge($metaDirectives, $headerDirectives);
+$response->pageInspected();          // false
+$response->pageDecision()->allowed;  // false
+$response->pageDecision()->rule;     // the rule that blocked it
 ```
 
-**Example output:**
+### HTTP metadata
 
-```json
+```php
+$response->robotsUrl();      // https://example.com/robots.txt
+$response->requestedUrl();   // https://example.com/products/widget
+$response->finalUrl();       // after redirects
+$response->redirects();
+$response->statusCode();     // the robots.txt response
+$response->pageStatusCode(); // the page response, if fetched
+$response->error();
+$response->size();           // bytes of robots.txt read
+$response->truncated();
+```
+
+A failed fetch is a value, not an exception: a site with no robots.txt is a finding to report.
+
+### Limits
+
+Defaults follow what real crawlers do, not what is technically possible. Google reads at most 500 KB
+of a robots.txt, so content past that is ignored and flagged rather than parsed into rules nothing
+will honour.
+
+```php
+use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
+
+$parser = new RobotsTxtParser(new HttpConfiguration(
+    maxBytes: 500 * 1024,
+    maxHtmlBytes: 1024 * 1024,
+    maxRedirects: 5,
+    robotsTimeout: 10,
+    pageTimeout: 10,
+));
+```
+
+## The agent dataset
+
+User agents are enriched from a bundled dataset of ~1,600 known crawlers, sharded by leading letter
+so a lookup reads one file of ~17 KB rather than decoding the whole 470 KB set.
+
+```php
+$userAgent = $document->userAgents()[0];
+$userAgent->token;                // 'GPTBot' — exactly as declared
+$userAgent->agent?->category;     // 'AI Data Scraper'
+$userAgent->agent?->description;
+```
+
+Skip the dataset entirely when you do not need it:
+
+```php
+use Leopoletto\RobotsTxtParser\Agents\NullAgentRepository;
+
+new RobotsTxtParser(agents: new NullAgentRepository());
+```
+
+### Refreshing it
+
+Data comes from [knownagents.com](https://knownagents.com/agents). The sync reads that site's own
+robots.txt through this parser and stops if it is not permitted, paces its requests, and fetches
+only agents missing locally.
+
+```bash
+composer agents:sync -- --dry-run   # report what would change
+composer agents:sync                # fetch new agents
+composer agents:build               # rebuild the shards
+```
+
+## Extending the parser
+
+Each directive is handled by its own `LineParser`, consulted in order:
+
+```php
+use Leopoletto\RobotsTxtParser\Contract\LineParser;
+
+final class HostParser implements LineParser
 {
-    "effective_rules": {
-        "index": true,
-        "follow": true,
-        "max_snippet": -1,
-        "max_image_preview": "standard",
-        "max_video_preview": -1,
-        "archive": true,
-        "translate": true,
-        "image_index": true
-    },
-    "sources": {
-        "meta_count": 1,
-        "header_count": 2
+    public function supports(Token $token): bool
+    {
+        return $token->fieldIs('host');
+    }
+
+    public function parse(Token $token, ParseContext $context): array
+    {
+        return [new HostRecord($token->number, $token->value)];
     }
 }
+
+$parser = new DocumentParser($agents, [
+    new CommentParser(),
+    new HostParser(),
+    // …the catch-all must come last
+    new UnknownFieldParser(),
+]);
 ```
 
-When no directives are present, the default permissive state is returned (all indexing/following allowed, no restrictions on snippets or previews).
+Input sources are equally pluggable — implement `Contract\Source` to parse from anywhere.
 
-## Complete Example
+## Development
 
-Here's a complete example showing all available data:
-
-```php
-use Leopoletto\RobotsTxtParser\RobotsTxtParser;
-
-$parser = new RobotsTxtParser();
-$parser->configureUserAgent('MyBot', '1.0', 'https://example.com/mybot');
-
-// Parse from URL
-$response = $parser->parseUrl('https://example.com');
-$records = $response->records();
-
-// Build comprehensive response
-$data = [
-    'size' => $response->size(),
-    'lines' => $records->lines(),
-    'user_agents' => $records->userAgents()->toArray(),
-    'disallowed' => $records->displayUserAgent()->disallowed()->toArray(),
-    'allowed' => $records->allowed()->toArray(),
-    'crawls_delay' => $records->crawlDelay()->toArray(),
-    'sitemaps' => $records->sitemaps()->toArray(),
-    'comments' => $records->comments()->toArray(),
-    'html' => $records->metaTagsDirectives()->toArray(),      // From parseUrl only
-    'headers' => $records->headersDirectives()->toArray(),    // From parseUrl only
-    'errors' => $records->syntaxErrors()->toArray(),
-];
-
-return response()->json($data);
+```bash
+composer test        # phpunit
+composer phpstan     # level 8
+composer format      # php-cs-fixer
+composer quality     # all three
 ```
 
-See `public/example.json` for a complete example of the output structure.
+## Upgrading from 2.x
 
-## User Agent Groups
-
-The library correctly handles consecutive User-agent declarations, which in robots.txt format means they share the same directives:
-
-```robots.txt
-User-agent: *
-User-agent: GPT-User
-Disallow: /admin/
-```
-
-Both `*` and `GPT-User` will have the same directives. When you query by either user agent, you'll get the same results:
-
-```php
-$disallowed1 = $records->disallowed('*')->toArray();
-$disallowed2 = $records->disallowed('GPT-User')->toArray();
-// Both return the same directives
-```
-
-## Features
-
-- ✅ Parse robots.txt from URL, file, or text
-- ✅ Extract X-Robots-Tag HTTP headers
-- ✅ Extract robots meta tags from HTML pages (robots, googlebot, googlebot-news, bingbot)
-- ✅ Handle consecutive User-agent declarations (groups)
-- ✅ Efficient storage (no duplicate directives)
-- ✅ Support for all standard directives (Allow, Disallow, Crawl-delay, Sitemap)
-- ✅ Comments and syntax error detection
-- ✅ Memory-efficient streaming for large files
-- ✅ **User agent recognition** - Automatic description and category for recognized bots
-- ✅ **Path access checking** - Check if a user agent is allowed to access a specific path
-- ✅ **Pattern matching** - Support for `*` wildcards and `$` end anchors
-- ✅ **Directive validation** - Validate simple and parametric directives with conflict, redundancy, and deprecation detection
-- ✅ **Directive merging** - Merge meta tag and header directives with most-restrictive-wins resolution
-- ✅ Comprehensive test coverage
+Version 3 is a rewrite with a different public API. See [CHANGELOG.md](CHANGELOG.md) for the full
+migration guide.
 
 ## Credits
 
-- [leopoletto](https://github.com/leopoletto)
-- [All Contributors](../../contributors)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+- [Leonardo Poletto](https://github.com/leopoletto)
+- Agent data from [Known Agents](https://knownagents.com)
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+The MIT License (MIT). See [LICENSE.md](LICENSE.md).

@@ -16,10 +16,18 @@
     backupStaticProperties="false"
 >
     <testsuites>
-        <testsuite name="Robots TXT Parser Test Suite">
-            <directory>tests</directory>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
         </testsuite>
     </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
     <logging>
         <junit outputFile="build/report.junit.xml"/>
     </logging>

@@ -2,6 +2,97 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v3.0.0 - 2026-09-05
+
+A full rewrite. The package is now modular, framework-free and statically analysed, and the three
+parse entry points finally behave identically.
+
+### Breaking changes
+
+**Dropped `illuminate/support`.** The library no longer pulls in a framework. Collections are gone
+from the public API; every query returns a plain typed `list<>`.
+
+**`RobotsCollection` is replaced by `Parsing\Document`.** Query methods return typed records rather
+than nested arrays, and nothing carries state between calls. The `displayUserAgent()` flag — mutable
+state on a returned collection that silently disabled itself after one call — is gone. Directives
+now know their own group, so `$directive->userAgents()` replaces it.
+
+**Records are typed.** `Records\*` moved to `Record\*`; `SyntaxError` became `Issue` with a
+severity and a type; `RobotsDirective` became `Directive` with a `DirectiveType` enum instead of a
+string. `Records\Content` was unused and has been removed.
+
+**Validation results are objects.** `ValidationResult`, `ParsedDirective` and `ValidationIssue`
+replace the nested arrays returned by `DirectiveValidator`, and `Validators\` moved to
+`Validation\`. `Helpers\RobotsMerger` became `Model\EffectiveRules`.
+
+**Renamed parser methods.** `configureUserAgent()` → `withBotSignature()`, `setUserAgent()` →
+`withUserAgent()`, `loadContent()` → `keepContent()`. The raw document is read from
+`Response::content()` rather than a public property.
+
+**The size limit is now 500 KB, not 500 MB.** 500 MB was never meaningful: Google ignores anything
+past 500 KB. Oversized content is truncated and reported as a `truncated` issue instead of throwing.
+
+**`Response::statusCode()` now reports the robots.txt status only.** It was previously overwritten
+by the page response. The page's status is `pageStatusCode()`.
+
+### Fixed
+
+- **`parseText()` no longer lowercases and deduplicates lines.** It did, which meant pasted content
+  reported different rules and different line numbers than the same file uploaded — and silently
+  dropped a repeated `Disallow:` belonging to a second user-agent group. Agent lookup is
+  case-insensitive on its own, so the lowercasing bought nothing.
+- **Ports are preserved when locating robots.txt.** `http://localhost:8000/x` resolved to
+  `http://localhost/robots.txt`.
+- **A trailing `$` is stripped once, not repeatedly.** `rtrim($pattern, '$')` removed every trailing
+  anchor, and a `$` in the middle of a pattern is now correctly literal.
+- **Equal-specificity conflicts resolve to the least restrictive rule**, per RFC 9309, rather than to
+  whichever line came first.
+- **Repeated groups for one agent are merged.** A document declaring `User-agent: Googlebot` twice
+  previously had its second set of rules ignored.
+- Inline comments (`Disallow: /admin # note`) are stripped from directive values.
+- A UTF-8 BOM on line 1 no longer corrupts the first field.
+- Meta tags are parsed attribute-wise, so unquoted, single-quoted and reordered attributes all work.
+- `X-Robots-Tag: max-snippet:-1` is no longer misread as targeting a crawler named `max-snippet`.
+
+### Added
+
+- **Issues for lines that were previously dropped in silence** — misspelled directives, rules before
+  any `User-agent:`, non-numeric crawl delays, paths missing a leading `/`.
+- **`Decision`**: `decide()` returns the outcome *and* the rule responsible, so a UI can point at it.
+- **The page is no longer fetched when robots.txt disallows it.** `pageDecision()` and
+  `pageInspected()` report what happened, and a `page_disallowed` issue explains it.
+- **Sharded agent dataset.** ~1,600 agents split by leading letter; a lookup reads ~17 KB instead of
+  decoding 470 KB twice. The eager/lazy "priority agents" split is gone, as is `data/compress.php`.
+- **`bin/sync-agents.php`** refreshes the dataset from knownagents.com via its sitemap, obeying that
+  site's robots.txt through this parser, pacing requests, and fetching only what is missing. It also
+  captures each agent's operator and whether it is expected to honour robots.txt.
+- **Pluggable parsing.** `Contract\LineParser` and `Contract\Source` make new directives and new
+  input types additive rather than edits to a conditional chain.
+- `HttpConfiguration` for limits and timeouts; `NullAgentRepository` to skip dataset I/O entirely.
+- PHPStan level 8, clean.
+
+### Migration
+
+```php
+// 2.x
+$parser->configureUserAgent('MyBot', '1.0', 'https://example.com');
+$response = $parser->loadContent(true)->parseUrl($url);
+$rules = $response->records()->disallowed('GPTBot')->toArray();
+$content = $parser->content;
+
+// 3.0
+$parser->withBotSignature('MyBot', '1.0', 'https://example.com');
+$response = $parser->keepContent()->parseUrl($url);
+$rules = $response->records()->disallowed('GPTBot'); // list<Directive>
+$content = $response->content();
+```
+
+Record arrays keep their previous shape via `toArray()`, so serialised output needs little change:
+
+```php
+$rules = array_map(fn ($d) => $d->toArray(), $response->records()->disallowed('GPTBot'));
+```
+
 ## v2.5.0 - 2026-04-05
 
 Update version to 2.5.0 and refactor RobotsTxtParser for improved meta tag handling
