@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Leopoletto\RobotsTxtParser\Parsing\Parser;
 
 use Leopoletto\RobotsTxtParser\Contract\LineParser;
+use Leopoletto\RobotsTxtParser\Model\Severity;
 use Leopoletto\RobotsTxtParser\Parsing\ParseContext;
 use Leopoletto\RobotsTxtParser\Parsing\Token;
+use Leopoletto\RobotsTxtParser\Record\Issue;
 use Leopoletto\RobotsTxtParser\Record\Sitemap;
 
 /**
@@ -23,7 +25,12 @@ final class SitemapParser implements LineParser
     public function parse(Token $token, ParseContext $context): array
     {
         if ($token->value === '') {
-            return [];
+            return [new Issue(
+                $token->number,
+                'Sitemap line declares no URL',
+                Severity::Medium,
+                'empty_sitemap',
+            )];
         }
 
         return [new Sitemap($token->number, $token->value, self::isUsable($token->value))];

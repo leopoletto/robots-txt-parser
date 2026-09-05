@@ -6,6 +6,7 @@ namespace Leopoletto\RobotsTxtParser\Tests\Unit;
 
 use Leopoletto\RobotsTxtParser\Agents\NullAgentRepository;
 use Leopoletto\RobotsTxtParser\Model\DirectiveType;
+use Leopoletto\RobotsTxtParser\Model\Severity;
 use Leopoletto\RobotsTxtParser\Parsing\Document;
 use Leopoletto\RobotsTxtParser\Parsing\DocumentParser;
 use Leopoletto\RobotsTxtParser\Source\TextSource;
@@ -128,21 +129,32 @@ final class DocumentParserTest extends TestCase
     }
 
     #[Test]
-    public function it_tolerates_non_standard_but_published_fields(): void
+    public function it_records_non_standard_fields_without_faulting_them(): void
     {
+        // Nothing is dropped in silence, but a published extension is not an
+        // error either — it is reported at the lowest severity.
         $document = $this->parse("User-agent: Yandex\nHost: example.com\nClean-param: ref /page");
 
-        $this->assertSame([], $document->issues());
+        $issues = $document->issues();
+        $this->assertCount(2, $issues);
+
+        foreach ($issues as $issue) {
+            $this->assertSame('nonstandard_directive', $issue->type);
+            $this->assertSame(Severity::Low, $issue->severity);
+        }
     }
 
     #[Test]
-    public function it_tolerates_the_content_signal_field(): void
+    public function it_does_not_fault_the_content_signal_field(): void
     {
-        // Cloudflare's AI-policy signal is deployed in the wild; flagging it as
-        // unknown would be noise on exactly the sites this package cares about.
+        // Cloudflare's AI-policy signal is deployed in the wild; reporting it as
+        // an unknown directive would be noise on exactly the sites this package
+        // cares about. It is noted at the lowest severity instead.
         $document = $this->parse("User-agent: *\nContent-Signal: ai-train=no, search=yes");
 
-        $this->assertSame([], $document->issues());
+        $this->assertCount(1, $document->issues());
+        $this->assertSame('nonstandard_directive', $document->issues()[0]->type);
+        $this->assertSame(Severity::Low, $document->issues()[0]->severity);
     }
 
     #[Test]
@@ -216,5 +228,37 @@ final class DocumentParserTest extends TestCase
 
         $this->assertTrue($document->truncated());
         $this->assertSame('truncated', $document->issues()[0]->type);
+    }
+
+    #[Test]
+    public function it_accepts_carriage_return_only_line_endings(): void
+    {
+        // Classic Mac terminators are rare but valid (RFC 9309 §2.2); treating
+        // the whole file as one line would drop every rule in it.
+        $document = $this->parse("User-agent: *\rDisallow: /test\rAllow: /public");
+
+        $this->assertCount(1, $document->userAgents());
+        $this->assertCount(1, $document->disallowed());
+        $this->assertCount(1, $document->allowed());
+        $this->assertSame(2, $document->disallowed()[0]->line);
+    }
+
+    #[Test]
+    public function it_handles_line_endings_mixed_within_one_file(): void
+    {
+        $document = $this->parse("User-agent: *\r\nDisallow: /test\rAllow: /public\n");
+
+        $this->assertCount(1, $document->userAgents());
+        $this->assertSame('/test', $document->disallowed()[0]->value);
+        $this->assertSame('/public', $document->allowed()[0]->value);
+    }
+
+    #[Test]
+    public function it_reports_a_sitemap_line_with_no_url(): void
+    {
+        $document = $this->parse("User-agent: *\nDisallow: /admin\nSitemap:");
+
+        $this->assertSame([], $document->sitemaps());
+        $this->assertSame('empty_sitemap', $document->issues()[0]->type);
     }
 }

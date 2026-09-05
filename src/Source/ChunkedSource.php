@@ -43,6 +43,7 @@ abstract class ChunkedSource implements Source
     public function lines(): Generator
     {
         $buffer = '';
+        $offset = 0;
         $number = 0;
 
         foreach ($this->chunks() as $chunk) {
@@ -57,13 +58,47 @@ abstract class ChunkedSource implements Source
             }
 
             $this->bytesRead += strlen($chunk);
+
+            // Discard what has already been yielded before growing the buffer,
+            // so it never holds more than the unread remainder.
+            if ($offset > 0) {
+                $buffer = substr($buffer, $offset);
+                $offset = 0;
+            }
+
             $buffer .= $chunk;
+            $length = strlen($buffer);
 
-            while (($position = strpos($buffer, "\n")) !== false) {
-                $line = substr($buffer, 0, $position);
-                $buffer = substr($buffer, $position + 1);
+            // Lines are read by advancing an offset rather than trimming the
+            // front of the buffer. Re-slicing from position zero copies the
+            // whole remainder on every line, which is quadratic — and a source
+            // that hands over its content in one piece hits the worst of it.
+            while ($offset < $length) {
+                $span = strcspn($buffer, "\r\n", $offset);
+                $position = $offset + $span;
 
-                yield ++$number => rtrim($line, "\r");
+                // No terminator in what has arrived so far.
+                if ($position >= $length) {
+                    break;
+                }
+
+                $skip = 1;
+                if ($buffer[$position] === "\r") {
+                    // A CR at the very end may be the first half of a CRLF that
+                    // has not arrived; wait for the next chunk to tell.
+                    if ($position + 1 >= $length && ! $this->truncated) {
+                        break;
+                    }
+
+                    if (($buffer[$position + 1] ?? '') === "\n") {
+                        $skip = 2;
+                    }
+                }
+
+                $line = substr($buffer, $offset, $span);
+                $offset = $position + $skip;
+
+                yield ++$number => $line;
             }
 
             if ($this->truncated) {
@@ -71,9 +106,9 @@ abstract class ChunkedSource implements Source
             }
         }
 
-        // A final line without a trailing newline still counts.
-        if ($buffer !== '') {
-            yield ++$number => rtrim($buffer, "\r");
+        // A final line without a trailing terminator still counts.
+        if ($offset < strlen($buffer)) {
+            yield ++$number => rtrim(substr($buffer, $offset), "\r\n");
         }
     }
 

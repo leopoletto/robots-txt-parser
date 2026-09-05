@@ -25,7 +25,7 @@ final class SyntaxCheck implements AuditCheck
     private const FETCH_ISSUES = ['page_disallowed', 'fetch_failed', 'empty_response', 'too_many_redirects'];
 
     /** Reported by their own dedicated checks, with better advice. */
-    private const HANDLED_ELSEWHERE = ['truncated', 'ineffective_directive'];
+    private const HANDLED_ELSEWHERE = ['truncated', 'ineffective_directive', 'nonstandard_directive'];
 
     public function run(Response $response): array
     {

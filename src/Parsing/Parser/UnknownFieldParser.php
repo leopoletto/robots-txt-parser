@@ -25,11 +25,11 @@ final class UnknownFieldParser implements LineParser
      * major crawler, and so are not worth flagging.
      */
     private const TOLERATED_FIELDS = [
-        'host',           // Yandex: preferred mirror
-        'clean-param',    // Yandex: ignorable query parameters
-        'request-rate',   // legacy rate limiting
-        'visit-time',     // legacy crawl window
-        'content-signal', // Cloudflare: ai-train / search / ai-input policy
+        'host' => 'a Yandex extension naming the preferred mirror',
+        'clean-param' => 'a Yandex extension listing ignorable query parameters',
+        'request-rate' => 'a legacy rate limit, honoured by few crawlers',
+        'visit-time' => 'a legacy crawl window, honoured by few crawlers',
+        'content-signal' => "Cloudflare's AI usage policy signal",
     ];
 
     /**
@@ -69,8 +69,17 @@ final class UnknownFieldParser implements LineParser
             )];
         }
 
-        if (in_array($token->field, self::TOLERATED_FIELDS, true)) {
-            return [];
+        if (isset(self::TOLERATED_FIELDS[$token->field])) {
+            // Recorded rather than dropped: a reader should be able to account
+            // for every line, and "no crawler I target reads this" is worth
+            // knowing even when it is harmless.
+            return [new Issue(
+                $token->number,
+                ucfirst($token->field) . ' is outside the standard — '
+                    . self::TOLERATED_FIELDS[$token->field],
+                Severity::Low,
+                'nonstandard_directive',
+            )];
         }
 
         return [new Issue(
