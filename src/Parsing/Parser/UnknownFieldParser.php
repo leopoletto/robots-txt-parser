@@ -29,8 +29,19 @@ final class UnknownFieldParser implements LineParser
         'clean-param',    // Yandex: ignorable query parameters
         'request-rate',   // legacy rate limiting
         'visit-time',     // legacy crawl window
-        'noindex',        // historic Google extension
         'content-signal', // Cloudflare: ai-train / search / ai-input policy
+    ];
+
+    /**
+     * Fields a crawler recognises the shape of but no longer acts on.
+     *
+     * These are worse than a typo: the line looks deliberate and is read by
+     * humans as protection, while doing nothing at all. They are recorded so
+     * an audit can say so, rather than dropped like an unknown field.
+     */
+    private const INEFFECTIVE_FIELDS = [
+        'noindex' => 'Google removed support for "Noindex" in robots.txt in September 2019; '
+            . 'no crawler honours it',
     ];
 
     public function supports(Token $token): bool
@@ -46,6 +57,15 @@ final class UnknownFieldParser implements LineParser
                 "Line is missing a ':' separator: '{$token->value}'",
                 Severity::High,
                 'malformed_line',
+            )];
+        }
+
+        if (isset(self::INEFFECTIVE_FIELDS[$token->field])) {
+            return [new Issue(
+                $token->number,
+                ucfirst($token->field) . ' has no effect: ' . self::INEFFECTIVE_FIELDS[$token->field],
+                Severity::Medium,
+                'ineffective_directive',
             )];
         }
 

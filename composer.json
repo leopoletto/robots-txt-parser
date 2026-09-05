@@ -34,7 +34,8 @@
             "@format:check",
             "@phpstan",
             "@test"
-        ]
+        ],
+        "crawlers:import": "php bin/import-crawlers.php"
     },
     "autoload": {
         "psr-4": {

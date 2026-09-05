@@ -198,9 +198,16 @@ final class RobotsTxtParser
             // for the theoretical case of a denial with no rule attached.
             $rule = $decision->rule;
 
+            // The rule that blocked us usually lives in the wildcard group, in
+            // which case it governs every crawler — saying it applies to our
+            // own token would misreport whose access is restricted.
+            $audience = $rule !== null && ! in_array('*', $rule->userAgents(), true)
+                ? 'for ' . implode(', ', $rule->userAgents())
+                : 'for all crawlers';
+
             return [$document->withRecords([new Issue(
                 $rule !== null ? $rule->line : 0,
-                "Page not fetched: robots.txt disallows {$decision->path} for {$signature->productToken}, "
+                "Page not fetched: robots.txt disallows {$decision->path} {$audience}, "
                     . 'so meta tags and page headers were not read',
                 Severity::Low,
                 'page_disallowed',
