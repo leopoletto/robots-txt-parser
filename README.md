@@ -4,11 +4,11 @@
 [![Latest Version](https://img.shields.io/packagist/v/leopoletto/robots-txt-parser.svg)](https://packagist.org/packages/leopoletto/robots-txt-parser)
 [![License](https://img.shields.io/packagist/l/leopoletto/robots-txt-parser.svg)](LICENSE.md)
 
-A PHP library for parsing and analysing `robots.txt` — from a URL, a file, or a string — including
+A PHP library for parsing and auditing `robots.txt` — from a URL, a file, or a string — including
 the robots `<meta>` tags and `X-Robots-Tag` headers that govern indexing alongside it.
 
-Built for analysis rather than crawling: it reports what a document *says*, what is *wrong* with it,
-and *why* a given rule applies to a given URL.
+Built for analysis rather than crawling. It reports what a document *says*, *why* a given rule
+applies to a given URL, and — through the audit — what any of it means for a site's visibility.
 
 ```php
 use Leopoletto\RobotsTxtParser\RobotsTxtParser;
@@ -18,8 +18,20 @@ $response = (new RobotsTxtParser())
     ->parseUrl('https://example.com/products/widget');
 
 $response->isAllowed('GPTBot', '/products/widget');   // false
-$response->records()->userAgents();                    // list<UserAgent>
-$response->records()->issues();                        // list<Issue>
+$response->records()->userAgents();                   // list<UserAgent>
+$response->records()->groups();                       // list<Group>
+```
+
+Then ask what it means:
+
+```php
+use Leopoletto\RobotsTxtParser\Audit\Auditor;
+
+foreach ((new Auditor())->audit($response)->actionable() as $finding) {
+    $finding->title;    // "3 of 3 user-triggered AI fetches are blocked"
+    $finding->impact;   // why that costs something
+    $finding->fix;      // what to do about it
+}
 ```
 
 ## Installation
@@ -151,6 +163,142 @@ Explanations are built on first access, so a document with thousands of rules co
 something reads them. The structural fields are there for callers who want to write their own
 wording or translate it.
 
+## Auditing
+
+Parsing answers *what does this file say*. The audit answers *what does that mean for this site,
+and what should change* — which is the question people actually arrive with.
+
+```php
+use Leopoletto\RobotsTxtParser\Audit\Auditor;
+
+$report = (new Auditor())->audit($response);
+
+$report->worst();       // Status::Critical
+$report->counts();      // ['critical' => 2, 'warning' => 6, 'notice' => 3, 'pass' => 2]
+$report->actionable();  // everything that is not a pass, worst first
+$report->find('blanket-block');
+$report->toArray();     // JSON-ready
+```
+
+Every finding answers three questions in order:
+
+```php
+$finding->title;      // "1 of 6 search engines are blocked"
+$finding->summary;    // what is the case
+$finding->impact;     // why it matters for visibility
+$finding->fix;        // what to do about it, or null when nothing is wrong
+$finding->evidence;   // the lines it points at
+$finding->status;     // Status::Critical
+```
+
+### Status
+
+A robots.txt is a policy document, not code: most of what looks wrong may be deliberate. So findings
+state what is true and only claim something is broken when it cannot be anything else.
+
+| Status | Meaning |
+| --- | --- |
+| `Critical` | Actively preventing indexing, or a rule no crawler can honour |
+| `Warning` | Likely costing visibility or leaking information |
+| `Notice` | Worth knowing; probably deliberate |
+| `Pass` | Nothing to do |
+
+### What it checks
+
+| Check | Looks for |
+| --- | --- |
+| `CrawlerAccessCheck` | Whether notable crawlers can reach the site, grouped by what blocking them costs |
+| `BlanketRuleCheck` | `Disallow: /` for everyone, or a file that restricts nothing |
+| `IndexingDirectiveCheck` | Page `noindex` reconciled against robots.txt |
+| `SitemapCheck` | Declared, absolute, reachable, and not blocked by this same file |
+| `SyntaxCheck` | Lines crawlers will skip |
+| `DeprecatedDirectiveCheck` | `Crawl-delay`, `Noindex:` — directives that no longer do what their author expects |
+| `SensitivePathCheck` | `/admin`, `/api`, `/staging` and similar, disclosed to a public file |
+| `PrecedenceCheck` | Contradictions, shadowed rules, duplicates |
+| `FileSizeCheck` | The 500 KB ceiling crawlers enforce |
+
+The single most expensive misunderstanding in the subject gets its own check: `Disallow` and
+`noindex` are not the same instruction, and combining them produces the opposite of what is
+intended. A crawler forbidden to fetch a page never reads its `noindex`, so the URL stays eligible
+for search — it just gets listed without a description.
+
+### Crawler groups
+
+Which crawlers are worth reporting on, and how they are grouped, follows
+[Cloudflare Radar](https://radar.cloudflare.com/bots), which measures observed crawler traffic
+rather than estimating importance. The useful idea taken from it is **purpose**, because the same
+mechanism has very different consequences:
+
+| Group | Blocking them costs |
+| --- | --- |
+| Search engines | Removal from search. Reported as `Critical`. |
+| AI answer engines | Citation traffic in AI-generated answers |
+| User-triggered AI fetches | A person asked for the page and gets an error |
+| Social link previews | Shared links render as bare URLs |
+| AI training crawlers | Nothing but the content. Reported as `Notice`, never a fault. |
+
+That last row matters: blocking training crawlers is the most common configuration on the web and
+an entirely legitimate editorial choice, so the audit reports it without calling it a problem.
+
+### Validating sitemaps
+
+A declared sitemap that 404s is worse than none — it looks handled. Pass a probe to fetch each one
+and check it responds and opens as a `urlset` or `sitemapindex`:
+
+```php
+use GuzzleHttp\Client;
+use Leopoletto\RobotsTxtParser\Audit\SitemapProbe;
+
+$auditor = new Auditor(probe: new SitemapProbe(
+    new Client(['http_errors' => false]),
+    'Mozilla/5.0 (compatible; MyBot/1.0; https://example.com/bot)',
+));
+```
+
+Without a probe the sitemap checks still run; they just do not make requests.
+
+### Posture at a glance
+
+Alongside the findings, the report groups every user agent the file *names* by what that crawler is
+for. On a file that declares dozens of agents, reading them one by one says nothing — grouped, the
+policy states itself:
+
+```php
+foreach ($report->breakdown->categories as $tally) {
+    printf("%-24s %s\n", $tally->category, $tally->describe());
+}
+
+$report->breakdown->fullyBlocked();   // categories where nothing is allowed
+$report->breakdown->fullyAllowed();
+```
+
+```
+Search Engine Crawler    all 17 allowed
+AI Data Scraper          all 9 blocked
+AI Assistant             all 5 blocked
+Undocumented AI Agent    all 3 blocked
+```
+
+### Adding a check
+
+Checks are independent and additive, so a new question never means editing the report:
+
+```php
+use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Response;
+
+final class HostCheck implements AuditCheck
+{
+    /** @return list<\Leopoletto\RobotsTxtParser\Audit\Finding> */
+    public function run(Response $response): array
+    {
+        return [];
+    }
+}
+
+$auditor = new Auditor([new HostCheck(), /* … */]);
+```
+
 ## Issues
 
 Malformed and ineffective lines are reported rather than silently dropped — a misspelled
@@ -165,20 +313,38 @@ foreach ($document->issues() as $issue) {
 }
 ```
 
+Nothing is dropped in silence. Every line is either parsed into a record or reported as an issue,
+so a reader can account for all of them.
+
+**Defects in the document**
+
+| Type | Severity | Meaning |
+| --- | --- | --- |
+| `malformed_line` | high | A line with no `:` separator |
+| `orphan_directive` | high | A rule declared before any `User-agent:` |
+| `unknown_directive` | medium | A field no crawler acts on, usually a typo |
+| `ineffective_directive` | medium | A field crawlers recognise but no longer honour, such as `Noindex:` |
+| `invalid_path` | medium | An `Allow`/`Disallow` value not starting with `/` |
+| `invalid_value` | medium | A non-numeric `Crawl-delay` |
+| `empty_sitemap` | medium | A `Sitemap:` line with no URL |
+| `nonstandard_directive` | low | A published extension outside the standard — see below |
+
+**About the request, not the file**
+
 | Type | Meaning |
 | --- | --- |
-| `unknown_directive` | A field no crawler will act on, usually a typo |
-| `orphan_directive` | A rule declared before any `User-agent:` |
-| `malformed_line` | A line with no `:` separator |
-| `invalid_path` | An `Allow`/`Disallow` value not starting with `/` |
-| `invalid_value` | A non-numeric `Crawl-delay` |
-| `truncated` | The document exceeded the size limit |
-| `page_disallowed` | The page was not fetched because robots.txt forbade it |
 | `fetch_failed` | The robots.txt could not be retrieved |
 | `too_many_redirects` | The redirect chain exceeded the limit |
+| `empty_response` | The response carried no body |
+| `truncated` | The document exceeded the size limit |
+| `page_disallowed` | The page was not fetched because robots.txt forbade it |
 
-Non-standard but widely published fields (`Host`, `Clean-param`, `Request-rate`, `Visit-time`) are
-accepted without complaint.
+Note the split. A `page_disallowed` note says nothing about whether the file is correct, so counting
+it as an error would report a fault against a valid document.
+
+Non-standard but widely published fields — `Host`, `Clean-param`, `Request-rate`, `Visit-time` and
+Cloudflare's `Content-Signal` — are recorded at the lowest severity rather than faulted. They are
+real, and worth knowing about, but they are not mistakes.
 
 ## Meta tags and X-Robots-Tag
 
@@ -260,8 +426,8 @@ $parser = new RobotsTxtParser(new HttpConfiguration(
 
 ## The agent dataset
 
-User agents are enriched from a bundled dataset of ~1,600 known crawlers, sharded by leading letter
-so a lookup reads one file of ~17 KB rather than decoding the whole 470 KB set.
+User agents are enriched from a bundled dataset of ~1,800 known crawlers, sharded by leading letter
+so a lookup reads one file of ~19 KB rather than decoding the whole 500 KB set.
 
 ```php
 $userAgent = $document->userAgents()[0];
@@ -280,15 +446,42 @@ new RobotsTxtParser(agents: new NullAgentRepository());
 
 ### Refreshing it
 
-Data comes from [knownagents.com](https://knownagents.com/agents). The sync reads that site's own
-robots.txt through this parser and stops if it is not permitted, paces its requests, and fetches
-only agents missing locally.
+Data comes from [knownagents.com](https://knownagents.com/agents). The roster is read from that
+site's sitemap rather than its paginated listing, so one request replaces thirty-six and nothing is
+missed to pagination shifting mid-crawl. Detail pages are fetched only for agents missing locally,
+so a routine sync costs one request per genuinely new crawler.
+
+It also dogfoods the library: the sync reads knownagents.com's own robots.txt *through this parser*
+and stops if it is not permitted, honours any declared `Crawl-delay`, and paces its requests.
 
 ```bash
-composer agents:sync -- --dry-run   # report what would change
-composer agents:sync                # fetch new agents
-composer agents:build               # rebuild the shards
+composer agents:sync -- --dry-run          # report what would change
+composer agents:sync -- --limit=25         # cap the fetches while trying it out
+composer agents:sync                       # fetch new agents
+composer agents:build                      # rebuild the shards
 ```
+
+## The crawler list
+
+Separate from the agent dataset, and much shorter: the crawlers the **audit** reports on, in
+`src/data/crawlers.json`, with the prose explaining what blocking each group costs.
+
+Selection and grouping follow [Cloudflare Radar](https://radar.cloudflare.com/bots). Traffic share
+moves month to month, so no ranking is stored — only membership and purpose, which are stable.
+
+Radar publishes no JSON for its directory, so regenerating is two steps. Paste
+`bin/radar-scrape.js` into the browser console on
+[radar.cloudflare.com/bots/directory](https://radar.cloudflare.com/bots/directory); it pages through
+the grid, extracts each card and downloads `radar-crawlers.json`. Then:
+
+```bash
+composer crawlers:import -- --input=radar-crawlers.json --dry-run
+composer crawlers:import -- --input=radar-crawlers.json
+```
+
+The importer maps Radar's purpose labels onto the report's groups and **reports anything it cannot
+place** rather than filing it somewhere plausible — a crawler in the wrong group would produce
+confidently wrong advice.
 
 ## Extending the parser
 
@@ -296,6 +489,8 @@ Each directive is handled by its own `LineParser`, consulted in order:
 
 ```php
 use Leopoletto\RobotsTxtParser\Contract\LineParser;
+use Leopoletto\RobotsTxtParser\Parsing\ParseContext;
+use Leopoletto\RobotsTxtParser\Parsing\Token;
 
 final class HostParser implements LineParser
 {
@@ -334,10 +529,14 @@ composer quality     # all three
 Version 3 is a rewrite with a different public API. See [CHANGELOG.md](CHANGELOG.md) for the full
 migration guide.
 
+`wizardcompass/robots-txt-parser` is retired in favour of this package. Its 2.0.0 release is a
+compatibility layer that delegates here, so existing installs keep working while they migrate.
+
 ## Credits
 
 - [Leonardo Poletto](https://github.com/leopoletto)
-- Agent data from [Known Agents](https://knownagents.com)
+- Crawler descriptions from [Known Agents](https://knownagents.com)
+- Crawler selection and purpose classification from [Cloudflare Radar](https://radar.cloudflare.com/bots)
 
 ## License
 
