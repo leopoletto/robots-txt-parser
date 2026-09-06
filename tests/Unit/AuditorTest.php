@@ -40,6 +40,42 @@ final class AuditorTest extends TestCase
     }
 
     #[Test]
+    public function a_default_deny_file_with_named_groups_is_an_allowlist_not_a_closed_site(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow: /
+
+            User-agent: Googlebot
+            Allow: /
+            TXT);
+
+        // A named group replaces the wildcard group, so Googlebot is not
+        // covered by "Disallow: /" and the site is not closed.
+        $this->assertNull($report->find('blanket-block'));
+
+        $finding = $report->find('blanket-allowlist');
+        $this->assertSame(Status::Notice, $finding?->status);
+        $this->assertStringContainsString('1 group names crawlers', (string) $finding?->summary);
+    }
+
+    #[Test]
+    public function a_default_deny_file_with_allow_exceptions_is_not_a_closed_site(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow: /
+            Allow: /public
+            TXT);
+
+        $this->assertNull($report->find('blanket-block'));
+        $this->assertStringContainsString(
+            '1 Allow rule opens specific paths',
+            (string) $report->find('blanket-allowlist')?->summary,
+        );
+    }
+
+    #[Test]
     public function an_open_file_passes_every_access_group(): void
     {
         $report = $this->audit("User-agent: *\nDisallow: /private\nSitemap: https://example.com/sitemap.xml");

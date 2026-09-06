@@ -2,6 +2,26 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v3.0.2 - 2026-09-06
+
+### Fixed
+
+- `BlanketRuleCheck` read `Disallow: /` under `User-agent: *` in isolation and
+  reported *"The whole site is closed to all crawlers ... so no crawler may
+  fetch any URL"* as `Critical`. Under RFC 9309 a group naming a crawler
+  replaces the wildcard group rather than adding to it, so that statement is
+  false for any file that blocks by default and then names the crawlers it
+  wants — an increasingly common shape. On linkedin.com, which names 76
+  crawlers, the audit asserted that nothing could be fetched while the same
+  report listed five of six search engines as allowed.
+
+  The check now reads the wildcard rule together with whatever overrides it.
+  With no named group and no `Allow` exception the finding is unchanged. With
+  either, it becomes `blanket-allowlist` at `Notice` — *"The file blocks
+  everything by default"* — naming how many groups and path exceptions are
+  exempt, and explaining that a named group must be added to let a new crawler
+  in, because an `Allow` in the wildcard group will not reach it.
+
 ## v3.0.1 - 2026-09-05
 
 Documentation only. No code changes, so upgrading from 3.0.0 is optional.

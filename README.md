@@ -208,7 +208,7 @@ state what is true and only claim something is broken when it cannot be anything
 | Check | Looks for |
 | --- | --- |
 | `CrawlerAccessCheck` | Whether notable crawlers can reach the site, grouped by what blocking them costs |
-| `BlanketRuleCheck` | `Disallow: /` for everyone, or a file that restricts nothing |
+| `BlanketRuleCheck` | `Disallow: /` for everyone, a default-deny allowlist, or a file that restricts nothing |
 | `IndexingDirectiveCheck` | Page `noindex` reconciled against robots.txt |
 | `SitemapCheck` | Declared, absolute, reachable, and not blocked by this same file |
 | `SyntaxCheck` | Lines crawlers will skip |
