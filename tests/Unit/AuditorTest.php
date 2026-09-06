@@ -193,7 +193,7 @@ final class AuditorTest extends TestCase
         $this->assertSame('OpenAI', $verdict->operator);
         $this->assertSame('OpenAI model training', $verdict->purpose);
         $this->assertFalse($verdict->allowed);
-        $this->assertSame('disallow: /', $verdict->rule);
+        $this->assertSame('Disallow: /', $verdict->rule);
         $this->assertSame(2, $verdict->line);
         $this->assertStringContainsString('blocks GPTBot', $verdict->policy());
 
