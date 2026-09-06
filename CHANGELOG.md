@@ -2,6 +2,16 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v3.1.1 - 2026-09-06
+
+### Fixed
+
+- `CrawlerVerdict::$rule` quoted the directive in lowercase — *"disallow: /"
+  blocks GPTBot* — because `DirectiveType`'s enum value is lowercased for
+  case-insensitive matching. A rule read back to someone should look the way
+  they wrote it. Added `DirectiveType::label()` and used it wherever a rule is
+  quoted.
+
 ## v3.1.0 - 2026-09-06
 
 Severity now answers "how confident are we that this is unintended" rather than

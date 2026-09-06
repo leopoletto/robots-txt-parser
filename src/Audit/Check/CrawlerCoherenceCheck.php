@@ -63,7 +63,7 @@ final class CrawlerCoherenceCheck implements AuditCheck
                     purpose: $purpose,
                     allowed: false,
                     rule: $decision->rule !== null
-                        ? "{$decision->rule->type->value}: {$decision->rule->value}"
+                        ? "{$decision->rule->type->label()}: {$decision->rule->value}"
                         : null,
                     line: $decision->rule?->line,
                 ),
@@ -109,7 +109,7 @@ final class CrawlerCoherenceCheck implements AuditCheck
                     purpose: $purpose,
                     allowed: true,
                     rule: $decision->rule !== null
-                        ? "{$decision->rule->type->value}: {$decision->rule->value}"
+                        ? "{$decision->rule->type->label()}: {$decision->rule->value}"
                         : null,
                     line: $decision->rule?->line,
                 );

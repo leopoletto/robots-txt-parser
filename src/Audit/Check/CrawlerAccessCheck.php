@@ -57,7 +57,7 @@ final class CrawlerAccessCheck implements AuditCheck
                     purpose: $purpose,
                     allowed: $decision->allowed,
                     rule: $decision->rule !== null
-                        ? "{$decision->rule->type->value}: {$decision->rule->value}"
+                        ? "{$decision->rule->type->label()}: {$decision->rule->value}"
                         : null,
                     line: $decision->rule?->line,
                 );
