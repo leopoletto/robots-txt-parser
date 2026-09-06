@@ -6,6 +6,7 @@ namespace Leopoletto\RobotsTxtParser\Audit;
 
 use Leopoletto\RobotsTxtParser\Audit\Check\BlanketRuleCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\CrawlerAccessCheck;
+use Leopoletto\RobotsTxtParser\Audit\Check\CrawlerCoherenceCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\DeprecatedDirectiveCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\FileSizeCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\IndexingDirectiveCheck;
@@ -41,6 +42,7 @@ final class Auditor
         $this->checks = $checks ?? [
             new BlanketRuleCheck(),
             new CrawlerAccessCheck(),
+            new CrawlerCoherenceCheck(),
             new IndexingDirectiveCheck(),
             new SitemapCheck($probe),
             new SyntaxCheck(),

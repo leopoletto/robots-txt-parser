@@ -2,6 +2,74 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## v3.1.0 - 2026-09-06
+
+Severity now answers "how confident are we that this is unintended" rather than
+"how expensive would this be if it were a mistake".
+
+The old model graded a blocked crawler by what blocking it would cost, which
+meant a site deliberately declining to feed model training scored the same as a
+staging server leaked to production. On linkedin.com — a file that names 76
+crawlers and knows exactly what it is doing — the audit reported two criticals
+and six warnings. It now reports none of the former and three of the latter,
+every one of which is a real finding.
+
+### Added
+
+- `Status::Info`, below `Notice`: a policy readout with no judgement attached.
+  `isActionable()` is false for it, `Report::actionable()` omits it and
+  `Report::worst()` ignores it, so a file whose only findings are informational
+  reports `Pass` overall with the full readout still there to read.
+- `Finding::$intent` — what a configuration achieves *if it was deliberate*.
+  This is the question most robots.txt tooling skips, and the reason so much of
+  it reads as scolding.
+- `CrawlerVerdict`, carried on `Finding::$crawlers`: per-crawler purpose,
+  operator, verdict, and the rule and line that decided it. Crawler-access
+  findings are read one crawler at a time, so the report now carries the
+  per-crawler answer instead of a list of names to look up.
+- `CrawlerCoherenceCheck`, which supplies the diagnostic signal the old
+  severities were standing in for. It compares one operator's crawlers against
+  each other: blocking OpenAI's `ChatGPT-User` while allowing `GPTBot` donates
+  the content in bulk and refuses the person who asked for the page. That is the
+  opposite of either intent, and almost always a rule that named the wrong user
+  agent. Unlike a blanket "you blocked an AI crawler", it is provable.
+- `CrawlerDirectory::operator()`, `intent()`, `consequence()`, `remedy()` and
+  `entries()`.
+
+### Changed
+
+- `CrawlerAccessCheck` no longer grades. A blocked crawler reports `Info`; a
+  group entirely allowed reports `Pass`. Nothing in it can produce a warning or
+  a critical any more, because blocking a crawler is a choice a site is entitled
+  to make and the same rule is a mistake on one site and the whole point on
+  another.
+- `precedence-contradiction` drops from `Warning` to `Notice`. When a group
+  declares `Allow` and `Disallow` for an identical path the Allow wins, so
+  nothing is blocked and nothing breaks — it is worth reporting only because the
+  file does not do what reading it suggests.
+- Group prose in `data/crawlers.json` was rewritten to state consequences
+  without judging the choice. "This is rarely intended outside a staging
+  environment" and similar are gone.
+- `composer.json` no longer carries a `version` field. Packagist derives the
+  version from the git tag and ignores it, so it could only ever drift — as it
+  did in 3.0.2.
+
+### Removed
+
+- `CrawlerDirectory::severity()`, `isDiscretionary()` and `downside()`, along
+  with the `severity`, `discretionary` and `downside` keys in
+  `data/crawlers.json`. Severity is no longer a fixed property of a crawler
+  group. Replaced by `intent`, `consequence` and `remedy`.
+
+### Upgrading
+
+`Status` gained a case. Any `match` over it that was exhaustive will now throw
+`\UnhandledMatchError` on an `Info` finding; add the case or a default. Code
+that filtered on `$finding->status !== Status::Pass` to find actionable
+findings should use `isActionable()`, which excludes `Info` as well. Anything
+reading `CrawlerDirectory::severity()` or `downside()` must move to the new
+accessors.
+
 ## v3.0.2 - 2026-09-06
 
 ### Fixed

@@ -60,14 +60,18 @@ final readonly class Report
     }
 
     /**
-     * The worst status present, which is what a summary badge should show.
+     * The worst status worth acting on, which is what a summary badge shows.
+     *
+     * Info findings are excluded deliberately. They report what the file does
+     * without claiming anything is wrong, so a file whose only findings are
+     * informational has nothing to fix and should say so.
      */
     public function worst(): Status
     {
         $worst = Status::Pass;
 
         foreach ($this->findings as $finding) {
-            if ($finding->status->weight() > $worst->weight()) {
+            if ($finding->isActionable() && $finding->status->weight() > $worst->weight()) {
                 $worst = $finding->status;
             }
         }
@@ -84,6 +88,7 @@ final readonly class Report
             Status::Critical->value => 0,
             Status::Warning->value => 0,
             Status::Notice->value => 0,
+            Status::Info->value => 0,
             Status::Pass->value => 0,
         ];
 

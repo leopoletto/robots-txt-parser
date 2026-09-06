@@ -37,11 +37,12 @@ final class PrecedenceCheck implements AuditCheck
             $findings[] = new Finding(
                 id: 'precedence-contradiction',
                 title: sprintf('%d path%s is both allowed and disallowed', count($contradictions), count($contradictions) === 1 ? '' : 's'),
-                status: Status::Warning,
+                status: Status::Notice,
                 summary: 'The same group declares Allow and Disallow for an identical path.',
-                impact: 'Order in the file does not decide this. Equal-length patterns resolve to the '
-                    . 'least restrictive rule, so the Allow wins and the Disallow has no effect — '
-                    . 'the opposite of what a top-to-bottom reading suggests.',
+                impact: 'Nothing is blocked that the author wanted blocked, and nothing breaks — but '
+                    . 'the file does not do what reading it suggests. Order does not decide this: '
+                    . 'equal-length patterns resolve to the least restrictive rule, so the Allow '
+                    . 'wins and the Disallow has no effect at all.',
                 fix: 'Delete whichever rule is not wanted. If the intent was to disallow a directory '
                     . 'but permit one page inside it, make the Allow more specific than the '
                     . 'Disallow rather than identical to it.',

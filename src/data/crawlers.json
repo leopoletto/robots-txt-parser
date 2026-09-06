@@ -8,68 +8,184 @@
     "groups": {
         "search": {
             "label": "Search engines",
-            "discretionary": false,
-            "severity": "critical",
-            "upside": "Pages can be discovered and ranked in the major search indexes.",
-            "downside": "Pages cannot be crawled, so they will not appear in these search engines. This is rarely intended outside a staging environment."
+            "intent": "keep the site out of the major search indexes",
+            "consequence": "These search engines cannot crawl the site, so its pages will not appear in their results. Note that robots.txt does not remove URLs that are already indexed — it stops them being re-crawled.",
+            "remedy": "Remove the matching Disallow rule, or give these crawlers their own group with an Allow rule. Path matching is longest-wins, so a specific Allow overrides a broader Disallow.",
+            "upside": "Pages can be discovered and ranked in the major search indexes."
         },
         "ai_search": {
             "label": "AI answer engines",
-            "discretionary": false,
-            "severity": "warning",
-            "upside": "The site can be cited as a source in AI-generated answers, which is an increasingly common way people arrive at a page.",
-            "downside": "The site cannot be cited in AI-generated answers. Unlike training crawlers, these send referral traffic, so blocking them forfeits visits."
+            "intent": "keep the site out of AI-generated answers",
+            "consequence": "The site cannot be cited as a source in AI-generated answers. Unlike training crawlers these send referral traffic, so blocking them forfeits those visits.",
+            "remedy": "Remove the matching Disallow rule, or allow these agents on the sections you want cited.",
+            "upside": "The site can be cited as a source in AI-generated answers, which is an increasingly common way people arrive at a page."
         },
         "ai_user": {
             "label": "User-triggered AI fetches",
-            "discretionary": false,
-            "severity": "warning",
-            "upside": "When someone asks an assistant to open a page on this site, it loads.",
-            "downside": "These requests are made because a person asked an assistant to open the page. Blocking them turns a real visit into an error, and it is usually collateral damage from a rule aimed at training crawlers."
+            "intent": "prevent assistants from fetching pages when a person asks for them",
+            "consequence": "When someone asks an assistant to open a page on this site, it cannot be retrieved. These requests are made because a person asked for that specific page, not to collect content in bulk.",
+            "remedy": "Allow these agents globally, or only on the sections you want retrievable.",
+            "upside": "When someone asks an assistant to open a page on this site, it loads."
         },
         "social": {
             "label": "Social link previews",
-            "discretionary": false,
-            "severity": "warning",
-            "upside": "Links shared on social platforms and in chat render with a title, description and image.",
-            "downside": "Links shared on these platforms will render as a bare URL with no title, description or image, which measurably reduces click-through."
+            "intent": "prevent link previews on social platforms",
+            "consequence": "Links to this site shared on these platforms render as a bare URL, with no title, description or image.",
+            "remedy": "Allow these agents, or at least the pages that get shared, along with the images they reference.",
+            "upside": "Links shared on social platforms and in chat render with a title, description and image."
         },
         "ai_training": {
             "label": "AI training crawlers",
-            "discretionary": true,
-            "severity": "notice",
-            "upside": "These crawlers may use the site's content as model training data.",
-            "downside": "These crawlers collect content to train models and send no traffic back. Blocking them is common practice — they are the most disallowed group on the web — and it does not affect search rankings."
+            "intent": "prevent this content being used as model training data",
+            "consequence": "These crawlers cannot retrieve content from the site, so it will not be collected as training data. They send no traffic back, and blocking them does not affect search rankings.",
+            "remedy": "Remove the site-wide block, or replace it with narrower path restrictions.",
+            "upside": "These crawlers may use the site's content as model training data."
         }
     },
     "crawlers": [
-        { "agent": "Googlebot", "group": "search", "operator": "Google", "description": "Google Search" },
-        { "agent": "Bingbot", "group": "search", "operator": "Microsoft", "description": "Bing, and the index behind Copilot and DuckDuckGo" },
-        { "agent": "Applebot", "group": "search", "operator": "Apple", "description": "Apple Search and Siri suggestions" },
-        { "agent": "DuckDuckBot", "group": "search", "operator": "DuckDuckGo", "description": "DuckDuckGo" },
-        { "agent": "YandexBot", "group": "search", "operator": "Yandex", "description": "Yandex" },
-        { "agent": "Baiduspider", "group": "search", "operator": "Baidu", "description": "Baidu" },
-
-        { "agent": "OAI-SearchBot", "group": "ai_search", "operator": "OpenAI", "description": "ChatGPT search results" },
-        { "agent": "PerplexityBot", "group": "ai_search", "operator": "Perplexity", "description": "Perplexity answers" },
-        { "agent": "Claude-SearchBot", "group": "ai_search", "operator": "Anthropic", "description": "Claude search results" },
-        { "agent": "Google-Extended", "group": "ai_search", "operator": "Google", "description": "Google AI Overviews and Gemini grounding" },
-
-        { "agent": "ChatGPT-User", "group": "ai_user", "operator": "OpenAI", "description": "A ChatGPT user opening this page" },
-        { "agent": "Perplexity-User", "group": "ai_user", "operator": "Perplexity", "description": "A Perplexity user opening this page" },
-        { "agent": "Claude-User", "group": "ai_user", "operator": "Anthropic", "description": "A Claude user opening this page" },
-
-        { "agent": "facebookexternalhit", "group": "social", "operator": "Meta", "description": "Facebook and Instagram link previews" },
-        { "agent": "Twitterbot", "group": "social", "operator": "X", "description": "X link previews" },
-        { "agent": "LinkedInBot", "group": "social", "operator": "LinkedIn", "description": "LinkedIn link previews" },
-        { "agent": "Slackbot-LinkExpanding", "group": "social", "operator": "Slack", "description": "Slack link previews" },
-        { "agent": "WhatsApp", "group": "social", "operator": "Meta", "description": "WhatsApp link previews" },
-
-        { "agent": "GPTBot", "group": "ai_training", "operator": "OpenAI", "description": "OpenAI model training" },
-        { "agent": "ClaudeBot", "group": "ai_training", "operator": "Anthropic", "description": "Anthropic model training" },
-        { "agent": "Bytespider", "group": "ai_training", "operator": "ByteDance", "description": "ByteDance model training" },
-        { "agent": "meta-externalagent", "group": "ai_training", "operator": "Meta", "description": "Meta model training" },
-        { "agent": "CCBot", "group": "ai_training", "operator": "Common Crawl", "description": "Common Crawl, widely redistributed as training data" },
-        { "agent": "Amazonbot", "group": "ai_training", "operator": "Amazon", "description": "Amazon model training and Alexa" }
+        {
+            "agent": "Googlebot",
+            "group": "search",
+            "operator": "Google",
+            "description": "Google Search"
+        },
+        {
+            "agent": "Bingbot",
+            "group": "search",
+            "operator": "Microsoft",
+            "description": "Bing, and the index behind Copilot and DuckDuckGo"
+        },
+        {
+            "agent": "Applebot",
+            "group": "search",
+            "operator": "Apple",
+            "description": "Apple Search and Siri suggestions"
+        },
+        {
+            "agent": "DuckDuckBot",
+            "group": "search",
+            "operator": "DuckDuckGo",
+            "description": "DuckDuckGo"
+        },
+        {
+            "agent": "YandexBot",
+            "group": "search",
+            "operator": "Yandex",
+            "description": "Yandex"
+        },
+        {
+            "agent": "Baiduspider",
+            "group": "search",
+            "operator": "Baidu",
+            "description": "Baidu"
+        },
+        {
+            "agent": "OAI-SearchBot",
+            "group": "ai_search",
+            "operator": "OpenAI",
+            "description": "ChatGPT search results"
+        },
+        {
+            "agent": "PerplexityBot",
+            "group": "ai_search",
+            "operator": "Perplexity",
+            "description": "Perplexity answers"
+        },
+        {
+            "agent": "Claude-SearchBot",
+            "group": "ai_search",
+            "operator": "Anthropic",
+            "description": "Claude search results"
+        },
+        {
+            "agent": "Google-Extended",
+            "group": "ai_search",
+            "operator": "Google",
+            "description": "Google AI Overviews and Gemini grounding"
+        },
+        {
+            "agent": "ChatGPT-User",
+            "group": "ai_user",
+            "operator": "OpenAI",
+            "description": "A ChatGPT user opening this page"
+        },
+        {
+            "agent": "Perplexity-User",
+            "group": "ai_user",
+            "operator": "Perplexity",
+            "description": "A Perplexity user opening this page"
+        },
+        {
+            "agent": "Claude-User",
+            "group": "ai_user",
+            "operator": "Anthropic",
+            "description": "A Claude user opening this page"
+        },
+        {
+            "agent": "facebookexternalhit",
+            "group": "social",
+            "operator": "Meta",
+            "description": "Facebook and Instagram link previews"
+        },
+        {
+            "agent": "Twitterbot",
+            "group": "social",
+            "operator": "X",
+            "description": "X link previews"
+        },
+        {
+            "agent": "LinkedInBot",
+            "group": "social",
+            "operator": "LinkedIn",
+            "description": "LinkedIn link previews"
+        },
+        {
+            "agent": "Slackbot-LinkExpanding",
+            "group": "social",
+            "operator": "Slack",
+            "description": "Slack link previews"
+        },
+        {
+            "agent": "WhatsApp",
+            "group": "social",
+            "operator": "Meta",
+            "description": "WhatsApp link previews"
+        },
+        {
+            "agent": "GPTBot",
+            "group": "ai_training",
+            "operator": "OpenAI",
+            "description": "OpenAI model training"
+        },
+        {
+            "agent": "ClaudeBot",
+            "group": "ai_training",
+            "operator": "Anthropic",
+            "description": "Anthropic model training"
+        },
+        {
+            "agent": "Bytespider",
+            "group": "ai_training",
+            "operator": "ByteDance",
+            "description": "ByteDance model training"
+        },
+        {
+            "agent": "meta-externalagent",
+            "group": "ai_training",
+            "operator": "Meta",
+            "description": "Meta model training"
+        },
+        {
+            "agent": "CCBot",
+            "group": "ai_training",
+            "operator": "Common Crawl",
+            "description": "Common Crawl, widely redistributed as training data"
+        },
+        {
+            "agent": "Amazonbot",
+            "group": "ai_training",
+            "operator": "Amazon",
+            "description": "Amazon model training and Alexa"
+        }
     ]
 }

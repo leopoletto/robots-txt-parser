@@ -173,41 +173,60 @@ use Leopoletto\RobotsTxtParser\Audit\Auditor;
 
 $report = (new Auditor())->audit($response);
 
-$report->worst();       // Status::Critical
-$report->counts();      // ['critical' => 2, 'warning' => 6, 'notice' => 3, 'pass' => 2]
+$report->worst();       // Status::Warning — the worst status worth acting on
+$report->counts();      // ['critical' => 0, 'warning' => 3, 'notice' => 4, 'info' => 5, 'pass' => 2]
 $report->actionable();  // everything that is not a pass, worst first
 $report->find('blanket-block');
 $report->toArray();     // JSON-ready
 ```
 
-Every finding answers three questions in order:
+Every finding answers four questions in order:
 
 ```php
-$finding->title;      // "1 of 6 search engines are blocked"
+$finding->title;      // "6 of 6 AI training crawlers are blocked"
 $finding->summary;    // what is the case
-$finding->impact;     // why it matters for visibility
-$finding->fix;        // what to do about it, or null when nothing is wrong
+$finding->intent;     // what this achieves, if it was deliberate
+$finding->impact;     // what it costs, either way
+$finding->fix;        // what to change if it was not deliberate
 $finding->evidence;   // the lines it points at
-$finding->status;     // Status::Critical
+$finding->crawlers;   // per-crawler detail, for crawler-access findings
+$finding->status;     // Status::Info
 ```
+
+The `intent` field is the one most robots.txt tooling skips, and the reason so much of it reads as
+scolding. A file that turns away every AI crawler is not broken; a report that cannot say so is not
+much use.
 
 ### Status
 
-A robots.txt is a policy document, not code: most of what looks wrong may be deliberate. So findings
-state what is true and only claim something is broken when it cannot be anything else.
+Severity answers **how confident the audit is that something is unintended** — never how expensive a
+rule would be if it were a mistake. What a rule costs belongs in `impact`, where the reader can weigh
+it against their own intent, rather than in a badge that decides for them.
 
-| Status | Meaning |
-| --- | --- |
-| `Critical` | Actively preventing indexing, or a rule no crawler can honour |
-| `Warning` | Likely costing visibility or leaking information |
-| `Notice` | Worth knowing; probably deliberate |
-| `Pass` | Nothing to do |
+| Status | Meaning | Example |
+| --- | --- | --- |
+| `Critical` | Cannot be what anyone intended | `Disallow: /` with nothing overriding it |
+| `Warning` | Internally incoherent — the rule did not hit its target | A user-triggered fetch blocked while the same operator collects content |
+| `Notice` | Deliberate-looking, with a consequence worth stating | Rules that can never take effect |
+| `Info` | A policy readout, with no judgement | *N of M search engines are blocked* |
+| `Pass` | Nothing to do | |
+
+`Info` and `Pass` are not actionable: `isActionable()` is false for both, `actionable()` omits them,
+and `worst()` ignores them. So a site that blocks every AI crawler on purpose reports `Pass` overall,
+with the full policy readout still there to read.
+
+Blocking a crawler is a choice a site is entitled to make, so `CrawlerAccessCheck` never grades it.
+The genuinely diagnostic signal lives in `CrawlerCoherenceCheck`, which compares one operator's
+crawlers against each other: blocking OpenAI's `ChatGPT-User` while allowing `GPTBot` donates the
+content in bulk and refuses the person who asked for the page — the opposite of either intent, and
+almost always a rule that named the wrong user agent.
 
 ### What it checks
 
 | Check | Looks for |
 | --- | --- |
-| `CrawlerAccessCheck` | Whether notable crawlers can reach the site, grouped by what blocking them costs |
+| `CrawlerAccessCheck` | Whether notable crawlers can reach the site, grouped by purpose |
+| `CrawlerCoherenceCheck` | One operator's crawlers contradicting each other |
 | `BlanketRuleCheck` | `Disallow: /` for everyone, a default-deny allowlist, or a file that restricts nothing |
 | `IndexingDirectiveCheck` | Page `noindex` reconciled against robots.txt |
 | `SitemapCheck` | Declared, absolute, reachable, and not blocked by this same file |
