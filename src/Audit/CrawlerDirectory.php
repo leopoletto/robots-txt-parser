@@ -43,7 +43,7 @@ final class CrawlerDirectory
     {
         $crawlers = [];
 
-        foreach ($this->data()['crawlers'] ?? [] as $crawler) {
+        foreach ($this->entries() as $crawler) {
             if (($crawler['group'] ?? null) !== $group) {
                 continue;
             }
@@ -55,6 +55,33 @@ final class CrawlerDirectory
         }
 
         return $crawlers;
+    }
+
+    /**
+     * Who runs a crawler, which is what lets one operator's agents be compared
+     * against each other.
+     */
+    public function operator(string $agent): string
+    {
+        foreach ($this->entries() as $crawler) {
+            if (($crawler['agent'] ?? null) === $agent) {
+                return (string) ($crawler['operator'] ?? '');
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Every crawler in the list, as raw rows.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function entries(): array
+    {
+        $crawlers = $this->data()['crawlers'] ?? [];
+
+        return is_array($crawlers) ? array_values(array_filter($crawlers, is_array(...))) : [];
     }
 
     /**
@@ -93,26 +120,32 @@ final class CrawlerDirectory
     }
 
     /**
-     * Whether blocking this group is a policy choice rather than a defect.
+     * What blocking this group achieves, phrased as the intent it would serve.
      */
-    public function isDiscretionary(string $group): bool
+    public function intent(string $group): string
     {
-        return (bool) ($this->group($group)['discretionary'] ?? false);
+        return (string) ($this->group($group)['intent'] ?? 'keep these crawlers off the site');
     }
 
-    public function severity(string $group): Status
+    /**
+     * What blocking this group costs, stated without judging the choice.
+     */
+    public function consequence(string $group): string
     {
-        return Status::tryFrom((string) ($this->group($group)['severity'] ?? 'warning')) ?? Status::Warning;
+        return (string) ($this->group($group)['consequence'] ?? 'These crawlers cannot reach the site.');
+    }
+
+    /**
+     * How to let this group back in, for a reader who did not intend the block.
+     */
+    public function remedy(string $group): string
+    {
+        return (string) ($this->group($group)['remedy'] ?? 'Remove the matching Disallow rule.');
     }
 
     public function upside(string $group): string
     {
         return (string) ($this->group($group)['upside'] ?? 'These crawlers can reach the site.');
-    }
-
-    public function downside(string $group): string
-    {
-        return (string) ($this->group($group)['downside'] ?? 'These crawlers cannot reach the site.');
     }
 
     /**

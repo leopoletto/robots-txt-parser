@@ -35,8 +35,11 @@ final class AuditorTest extends TestCase
         $report = $this->audit("User-agent: *\nDisallow: /");
 
         $search = $report->find('crawler-access-search');
-        $this->assertSame(Status::Critical, $search?->status);
         $this->assertStringContainsString('Googlebot', (string) $search?->summary);
+
+        // Blocking is reported, never graded: the critical verdict on this file
+        // comes from BlanketRuleCheck, which can prove nothing is reachable.
+        $this->assertSame(Status::Info, $search?->status);
     }
 
     #[Test]
@@ -90,7 +93,74 @@ final class AuditorTest extends TestCase
     }
 
     #[Test]
-    public function blocking_a_training_crawler_is_a_notice_not_a_fault(): void
+    public function blocking_a_training_crawler_is_reported_without_judgement(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow:
+
+            User-agent: GPTBot
+            Disallow: /
+
+            Sitemap: https://example.com/sitemap.xml
+            TXT);
+
+        $finding = $report->find('crawler-access-ai_training');
+        $this->assertSame(Status::Info, $finding?->status);
+        $this->assertStringContainsString('GPTBot', (string) $finding?->summary);
+        $this->assertFalse($finding?->isActionable());
+
+        // A site that declines to feed model training has nothing to fix.
+        $this->assertSame(Status::Pass, $report->worst());
+    }
+
+    #[Test]
+    public function blocking_a_user_triggered_fetcher_while_allowing_collection_is_incoherent(): void
+    {
+        // ChatGPT-User fetches because a person asked for the page; GPTBot and
+        // OAI-SearchBot collect content. Refusing the person while feeding the
+        // collectors is not a position anyone chooses on purpose.
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow:
+
+            User-agent: ChatGPT-User
+            Disallow: /
+            TXT);
+
+        $this->assertSame(Status::Info, $report->find('crawler-access-ai_user')?->status);
+
+        $finding = $report->find('crawler-coherence');
+        $this->assertSame(Status::Warning, $finding?->status);
+        $this->assertStringContainsString('ChatGPT-User is blocked', (string) $finding?->summary);
+    }
+
+    #[Test]
+    public function blocking_a_whole_operator_is_coherent_and_raises_nothing(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow:
+
+            User-agent: ChatGPT-User
+            Disallow: /
+
+            User-agent: GPTBot
+            Disallow: /
+
+            User-agent: OAI-SearchBot
+            Disallow: /
+
+            Sitemap: https://example.com/sitemap.xml
+            TXT);
+
+        // Shutting OpenAI out entirely is a coherent policy, not a defect.
+        $this->assertNull($report->find('crawler-coherence'));
+        $this->assertSame(Status::Pass, $report->worst());
+    }
+
+    #[Test]
+    public function blocking_collection_while_allowing_people_through_is_coherent(): void
     {
         $report = $this->audit(<<<'TXT'
             User-agent: *
@@ -100,27 +170,37 @@ final class AuditorTest extends TestCase
             Disallow: /
             TXT);
 
-        $finding = $report->find('crawler-access-ai_training');
-        $this->assertSame(Status::Notice, $finding?->status);
-        $this->assertStringContainsString('GPTBot', (string) $finding?->summary);
-
-        // Blocking a training crawler must not drag the whole report down.
-        $this->assertNotSame(Status::Critical, $report->worst());
+        $this->assertNull($report->find('crawler-coherence'));
     }
 
     #[Test]
-    public function blocking_a_user_triggered_fetcher_is_a_warning(): void
+    public function a_blocked_crawler_carries_its_purpose_and_the_rule_that_blocked_it(): void
     {
         $report = $this->audit(<<<'TXT'
-            User-agent: *
-            Disallow:
-
-            User-agent: ChatGPT-User
+            User-agent: GPTBot
             Disallow: /
             TXT);
 
-        $finding = $report->find('crawler-access-ai_user');
-        $this->assertSame(Status::Warning, $finding?->status);
+        $finding = $report->find('crawler-access-ai_training');
+        $verdict = null;
+        foreach ((array) $finding?->crawlers as $crawler) {
+            if ($crawler->agent === 'GPTBot') {
+                $verdict = $crawler;
+            }
+        }
+
+        $this->assertNotNull($verdict);
+        $this->assertSame('OpenAI', $verdict->operator);
+        $this->assertSame('OpenAI model training', $verdict->purpose);
+        $this->assertFalse($verdict->allowed);
+        $this->assertSame('disallow: /', $verdict->rule);
+        $this->assertSame(2, $verdict->line);
+        $this->assertStringContainsString('blocks GPTBot', $verdict->policy());
+
+        $this->assertStringContainsString(
+            'If your intention is to prevent this content being used as model training data',
+            (string) $finding?->intent,
+        );
     }
 
     #[Test]
@@ -197,7 +277,10 @@ final class AuditorTest extends TestCase
     {
         $report = $this->audit("User-agent: *\nDisallow: /page\nAllow: /page");
 
-        $this->assertSame(Status::Warning, $report->find('precedence-contradiction')?->status);
+        // The Allow wins, so nothing is actually blocked — worth reporting
+        // because the file does not do what it looks like it does, but it is
+        // not costing the site anything.
+        $this->assertSame(Status::Notice, $report->find('precedence-contradiction')?->status);
     }
 
     #[Test]

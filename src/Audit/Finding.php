@@ -7,13 +7,17 @@ namespace Leopoletto\RobotsTxtParser\Audit;
 /**
  * One audited fact about a robots.txt, phrased for someone who has to act on it.
  *
- * The three prose fields answer the three questions in order: what is the case,
- * why it matters for visibility, and what to do about it.
+ * The prose fields answer, in order: what is the case, what it would mean if
+ * this were deliberate, what it costs either way, and what to change if it was
+ * not. The middle question is the one a linter usually skips, and the reason
+ * most robots.txt advice reads as scolding: a file that blocks every AI crawler
+ * is not broken, and a report that cannot say so is not much use.
  */
 final readonly class Finding
 {
     /**
-     * @param list<Evidence> $evidence
+     * @param list<Evidence>       $evidence
+     * @param list<CrawlerVerdict> $crawlers
      */
     public function __construct(
         public string $id,
@@ -23,12 +27,16 @@ final readonly class Finding
         public string $impact,
         public ?string $fix = null,
         public array $evidence = [],
+        /** What this configuration achieves, if it was the intent. */
+        public ?string $intent = null,
+        /** Per-crawler detail, for findings about crawler access. */
+        public array $crawlers = [],
     ) {
     }
 
     public function isActionable(): bool
     {
-        return $this->status !== Status::Pass;
+        return $this->status->isActionable();
     }
 
     /**
@@ -41,9 +49,11 @@ final readonly class Finding
             'title' => $this->title,
             'status' => $this->status->value,
             'summary' => $this->summary,
+            'intent' => $this->intent,
             'impact' => $this->impact,
             'fix' => $this->fix,
             'evidence' => array_map(static fn (Evidence $e): array => $e->toArray(), $this->evidence),
+            'crawlers' => array_map(static fn (CrawlerVerdict $c): array => $c->toArray(), $this->crawlers),
         ];
     }
 }
