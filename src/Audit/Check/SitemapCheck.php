@@ -7,9 +7,9 @@ namespace Leopoletto\RobotsTxtParser\Audit\Check;
 use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
-use Leopoletto\RobotsTxtParser\Audit\SitemapProbe;
 use Leopoletto\RobotsTxtParser\Audit\Status;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
 use Leopoletto\RobotsTxtParser\Record\Sitemap;
 use Leopoletto\RobotsTxtParser\Response;
 
@@ -22,7 +22,7 @@ use Leopoletto\RobotsTxtParser\Response;
  */
 final class SitemapCheck implements AuditCheck
 {
-    public function __construct(private readonly ?SitemapProbe $probe = null)
+    public function __construct(private readonly ?SitemapProber $probe = null)
     {
     }
 

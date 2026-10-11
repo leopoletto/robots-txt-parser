@@ -7,6 +7,7 @@ namespace Leopoletto\RobotsTxtParser\Audit;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
+use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
 use Throwable;
 
 /**
@@ -15,7 +16,7 @@ use Throwable;
  * Only the opening bytes are read: enough to see a <urlset> or <sitemapindex>
  * root element, never the whole file, which for a large site can be megabytes.
  */
-final class SitemapProbe
+final class SitemapProbe implements SitemapProber
 {
     private const PREVIEW_BYTES = 2048;
 

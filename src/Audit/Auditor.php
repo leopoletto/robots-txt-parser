@@ -15,6 +15,7 @@ use Leopoletto\RobotsTxtParser\Audit\Check\SensitivePathCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\SitemapCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\SyntaxCheck;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
 use Leopoletto\RobotsTxtParser\Response;
 
 /**
@@ -34,10 +35,10 @@ final class Auditor
 
     /**
      * @param list<AuditCheck>|null $checks Override the default set.
-     * @param SitemapProbe|null     $probe  Supply to fetch and validate declared
+     * @param SitemapProber|null    $probe  Supply to fetch and validate declared
      *                                      sitemaps rather than only parsing them.
      */
-    public function __construct(?array $checks = null, ?SitemapProbe $probe = null)
+    public function __construct(?array $checks = null, ?SitemapProber $probe = null)
     {
         $this->checks = $checks ?? [
             new BlanketRuleCheck(),

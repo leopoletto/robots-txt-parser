@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit;
 
+/**
+ * What one request for a declared sitemap found.
+ *
+ * It can be written out and read back, so the facts of a probe outlive the
+ * request and can be handed to a later audit of the same file.
+ */
 final readonly class SitemapProbeResult
 {
     public function __construct(
@@ -14,6 +20,36 @@ final readonly class SitemapProbeResult
         public ?string $contentType = null,
         public ?string $error = null,
     ) {
+    }
+
+    /**
+     * @return array{url: string, statusCode: int|null, reachable: bool, looksLikeXml: bool, contentType: string|null, error: string|null}
+     */
+    public function toArray(): array
+    {
+        return [
+            'url' => $this->url,
+            'statusCode' => $this->statusCode,
+            'reachable' => $this->reachable,
+            'looksLikeXml' => $this->looksLikeXml,
+            'contentType' => $this->contentType,
+            'error' => $this->error,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data The output of toArray().
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            url: (string) ($data['url'] ?? ''),
+            statusCode: isset($data['statusCode']) ? (int) $data['statusCode'] : null,
+            reachable: (bool) ($data['reachable'] ?? false),
+            looksLikeXml: (bool) ($data['looksLikeXml'] ?? false),
+            contentType: isset($data['contentType']) ? (string) $data['contentType'] : null,
+            error: isset($data['error']) ? (string) $data['error'] : null,
+        );
     }
 
     public function describe(): string
