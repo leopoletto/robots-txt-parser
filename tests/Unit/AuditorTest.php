@@ -248,10 +248,33 @@ final class AuditorTest extends TestCase
     #[Test]
     public function it_does_not_mistake_a_similar_path_for_a_sensitive_one(): void
     {
-        // "/apidocs" is public documentation, not the "/api" endpoint.
-        $report = $this->audit("User-agent: *\nDisallow: /apidocs");
+        // "/developers" is public documentation, not a "/dev" environment.
+        $report = $this->audit("User-agent: *\nDisallow: /developers");
 
         $this->assertNull($report->find('sensitive-paths'));
+    }
+
+    #[Test]
+    public function it_does_not_flag_a_path_that_discloses_nothing_by_being_listed(): void
+    {
+        $report = $this->audit(<<<'TXT'
+            User-agent: *
+            Disallow: /api/_snippets/*
+            Disallow: /graphql
+            Disallow: /wp-admin/
+            TXT);
+
+        $this->assertNull($report->find('sensitive-paths'));
+    }
+
+    #[Test]
+    public function it_advises_removing_a_sensitive_path_so_its_noindex_can_be_read(): void
+    {
+        $fix = (string) $this->audit("User-agent: *\nDisallow: /backups")->find('sensitive-paths')?->fix;
+
+        $this->assertStringContainsString('Remove these lines', $fix);
+        $this->assertStringContainsString('X-Robots-Tag', $fix);
+        $this->assertStringContainsString('no longer Disallowed', $fix);
     }
 
     #[Test]

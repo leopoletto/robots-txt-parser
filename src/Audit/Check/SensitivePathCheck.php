@@ -17,6 +17,11 @@ use Leopoletto\RobotsTxtParser\Response;
  * robots.txt is world-readable and one of the first files any scanner fetches.
  * Disallowing /admin does not hide it — it publishes a list of the places worth
  * attacking, to exactly the audience that would not have honoured the rule.
+ *
+ * Only paths whose listing is itself the leak are flagged. An address a site's
+ * own pages already call, such as /api or /graphql, or one every install of a
+ * product shares, such as /wp-admin, tells a reader nothing new, and Disallow
+ * is the right way to keep crawlers off it.
  */
 final class SensitivePathCheck implements AuditCheck
 {
@@ -25,9 +30,9 @@ final class SensitivePathCheck implements AuditCheck
      * by what a reader would learn from seeing them listed.
      */
     private const PATTERNS = [
-        'administration' => ['/admin', '/administrator', '/wp-admin', '/backend', '/cpanel', '/phpmyadmin', '/adminer'],
+        'administration' => ['/admin', '/administrator', '/backend', '/cpanel', '/phpmyadmin', '/adminer'],
         'internal environments' => ['/staging', '/stage', '/dev', '/test', '/uat', '/sandbox', '/preview', '/beta'],
-        'infrastructure' => ['/api', '/graphql', '/internal', '/private', '/debug', '/config', '/.env', '/.git', '/server-status'],
+        'infrastructure' => ['/internal', '/private', '/debug', '/config', '/.env', '/.git', '/server-status'],
         'data and backups' => ['/backup', '/backups', '/dump', '/export', '/db', '/sql', '/logs'],
     ];
 
@@ -73,11 +78,11 @@ final class SensitivePathCheck implements AuditCheck
             impact: 'robots.txt is public and is among the first files an attacker or scanner reads. '
                 . 'Listing these paths does not protect them — it advertises them to the readers '
                 . 'least likely to honour the rule, while well-behaved crawlers were never the risk.',
-            fix: 'Protect these locations with authentication, and keep them out of search with a '
-                . '"noindex" header or meta tag rather than a Disallow rule. Where a rule is still '
-                . 'wanted, a broader pattern such as "/a" or a wildcard discloses less than the '
-                . 'full path. Note that a Disallowed URL can still be indexed if other sites link '
-                . 'to it, because the crawler never reads the page to see a noindex.',
+            fix: 'Remove these lines and put the locations behind authentication, which is what '
+                . 'protects them. Keep them out of search with a "noindex" sent as an X-Robots-Tag '
+                . 'header, or as a meta tag on HTML pages. A crawler has to fetch a URL to see its '
+                . 'noindex, so that only works once the path is no longer Disallowed. A path that '
+                . 'is not secret and only needs to be left uncrawled is a fair use of Disallow.',
             evidence: $evidence,
         )];
     }
@@ -92,7 +97,7 @@ final class SensitivePathCheck implements AuditCheck
 
         foreach (self::PATTERNS as $category => $fragments) {
             foreach ($fragments as $fragment) {
-                // Match the path segment, so "/apixyz" does not read as "/api".
+                // Match the path segment, so "/adminxyz" does not read as "/admin".
                 if ($normalised === $fragment || str_starts_with($normalised, $fragment . '/')) {
                     return $category;
                 }
