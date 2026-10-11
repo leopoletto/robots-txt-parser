@@ -2,9 +2,16 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
-## Pending for 2.0.0
+## Planned for 2.1
 
-Not released. Everything here breaks something a consumer may rely on, so it ships together.
+- **Directive config check**, replacing `DeprecatedDirectiveCheck`. That check's verdict on
+  `Crawl-delay` is wrong as it stands: it says crawlers ignore the directive, and Bing
+  honours it.
+- **Unknown-directive config and scoring change.**
+
+## v2.0.0 - 2026-10-11
+
+Everything here breaks something a consumer may rely on.
 
 - **Path tiers.** `SensitivePathCheck` reports a path only when listing it tells a reader
   something they could not guess. `/admin`, `/administrator`, `/backend`, `/cpanel` and a bare
@@ -19,7 +26,8 @@ Not released. Everything here breaks something a consumer may rely on, so it shi
   `sensitive-paths-wildcard`. Anything that looks a finding up by the old id finds nothing.
 - **`Finding::category`.** Every finding carries a `Category` (`crawler_access`, `security`,
   `syntax`, `discovery`, `indexing`, `usage_preference`), also present in `toArray()`. It is a
-  required constructor argument, so a custom check must pass one.
+  required constructor argument, so a custom check must pass one. Findings of one check may
+  differ in category: `DeprecatedDirectiveCheck` files its `Noindex:` finding under `indexing`.
 - **Severity recalibration.** Nothing in `SensitivePathCheck` is critical, because nothing is
   fetched: secrets and specific names are warnings, tool panels and wildcard patterns are
   info. A later reachability check may raise a secret to critical on a confirmed 200.
@@ -36,12 +44,6 @@ Not released. Everything here breaks something a consumer may rely on, so it shi
   prober only when it may. It also takes the two things about the robots.txt response that
   the file does not hold: its size when fetched, since kept content measures less than the
   original, and the X-Robots-Tag values sent with it.
-- **`DeprecatedDirectiveCheck` replaced by the directive config check.** Not implemented yet.
-  Its verdict on `Crawl-delay` is wrong as it stands: it says crawlers ignore the directive,
-  and Bing honours it. Until it is replaced, the only change is that its `Noindex:` finding
-  is filed under `indexing`.
-- **Unknown-directive config and scoring change.** Not implemented yet.
-
 ## v1.0.1 - 2026-10-11
 
 - `SensitivePathCheck` no longer flags `/api`, `/graphql` or `/wp-admin`. Listing them
