@@ -23,6 +23,19 @@ Not released. Everything here breaks something a consumer may rely on, so it shi
 - **Severity recalibration.** Nothing in `SensitivePathCheck` is critical, because nothing is
   fetched: secrets and specific names are warnings, tool panels and wildcard patterns are
   info. A later reachability check may raise a secret to critical on a confirmed 200.
+- **`SitemapProber` contract.** `Auditor` and `SitemapCheck` take a `Contract\SitemapProber`
+  where they took the concrete `SitemapProbe`, which is now its HTTP implementation. A caller
+  can record what a probe found (`SitemapProbeResult::toArray()` / `fromArray()`) and replay
+  it, so a stored file audited again reaches the verdict it had when it was fetched.
+- **`PageProber` contract.** `RobotsTxtParser::withPageProber()` takes a `Contract\PageProber`
+  to ask for a page's meta robots tags and X-Robots-Tag headers; `Http\PageInspector` is its
+  HTTP implementation, and its `inspect()` method and constructor changed to match. What a
+  probe found is on `Response::pageProbe()` as a `PageProbeResult` (`toArray()` /
+  `fromArray()`). `RobotsTxtParser::parseTextForUrl()` parses a stored robots.txt for a URL
+  without fetching it, deciding again whether the page may be requested and asking the
+  prober only when it may. It also takes the two things about the robots.txt response that
+  the file does not hold: its size when fetched, since kept content measures less than the
+  original, and the X-Robots-Tag values sent with it.
 - **`DeprecatedDirectiveCheck` replaced by the directive config check.** Not implemented yet.
   Its verdict on `Crawl-delay` is wrong as it stands: it says crawlers ignore the directive,
   and Bing honours it. Until it is replaced, the only change is that its `Noindex:` finding

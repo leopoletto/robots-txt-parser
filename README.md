@@ -276,6 +276,15 @@ $auditor = new Auditor(probe: new SitemapProbe(
 
 Without a probe the sitemap checks still run; they just do not make requests.
 
+The auditor takes any `Contract\SitemapProber`; `SitemapProbe` is the one that makes requests. To
+audit a stored file again without the network, keep what the probe found and answer from it:
+`SitemapProbeResult::toArray()` writes a result out and `SitemapProbeResult::fromArray()` reads it back.
+
+The page's own directives work the same way. `Response::pageProbe()` holds what the request for
+the page found; store its `toArray()`, and later hand a `Contract\PageProber` that returns it to
+`withPageProber()` and call `parseTextForUrl($storedRobotsTxt, $url)`. Whether the page may be
+requested is decided again from the stored file each time, so only what came from the network is kept.
+
 ### Posture at a glance
 
 Alongside the findings, the report groups every user agent the file *names* by what that crawler is
