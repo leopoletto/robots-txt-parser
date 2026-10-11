@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\SitemapProbe;
@@ -35,6 +36,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-missing',
                 title: 'No sitemap is declared',
                 status: Status::Warning,
+                category: Category::Discovery,
                 summary: 'The file contains no "Sitemap:" line.',
                 impact: 'Crawlers have to discover every URL by following links. Pages that are deep, '
                     . 'newly published, or poorly linked internally take longer to be found, and some '
@@ -53,6 +55,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-malformed',
                 title: sprintf('%d sitemap reference%s is not an absolute URL', count($malformed), count($malformed) === 1 ? '' : 's'),
                 status: Status::Warning,
+                category: Category::Discovery,
                 summary: 'A "Sitemap:" line must give a full URL including the scheme and host.',
                 impact: 'Crawlers ignore a relative or malformed sitemap reference, so these sitemaps '
                     . 'are never fetched — the same outcome as not declaring them.',
@@ -70,6 +73,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-blocked',
                 title: 'A declared sitemap is disallowed by this same file',
                 status: Status::Critical,
+                category: Category::Discovery,
                 summary: 'The robots.txt points crawlers at a sitemap URL its own rules forbid them to fetch.',
                 impact: 'The sitemap cannot be read, so none of the URLs it lists are submitted. '
                     . 'The declaration gives a false impression that discovery is handled.',
@@ -88,6 +92,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-declared',
                 title: sprintf('%d sitemap%s declared', count($sitemaps), count($sitemaps) === 1 ? '' : 's'),
                 status: Status::Pass,
+                category: Category::Discovery,
                 summary: 'Every declared sitemap is an absolute URL and is crawlable.',
                 impact: 'Crawlers are handed the URL list directly rather than discovering it by following links.',
                 evidence: array_map(
@@ -175,6 +180,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-unreachable',
                 title: sprintf('%d declared sitemap%s could not be fetched', count($unreachable), count($unreachable) === 1 ? '' : 's'),
                 status: Status::Critical,
+                category: Category::Discovery,
                 summary: 'The URL is declared in robots.txt but does not return a successful response.',
                 impact: 'Crawlers find nothing at the address they were pointed to, so no URLs are '
                     . 'submitted. This is worse than declaring no sitemap, because the declaration '
@@ -189,6 +195,7 @@ final class SitemapCheck implements AuditCheck
                 id: 'sitemap-not-xml',
                 title: sprintf('%d declared sitemap%s does not return XML', count($notXml), count($notXml) === 1 ? '' : 's'),
                 status: Status::Warning,
+                category: Category::Discovery,
                 summary: 'The URL responds, but the body does not open as an XML urlset or sitemapindex.',
                 impact: 'A sitemap that is not valid XML is discarded. A common cause is the URL '
                     . 'resolving to an HTML error page or a redirect to the home page.',

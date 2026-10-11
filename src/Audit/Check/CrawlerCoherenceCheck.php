@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\CrawlerDirectory;
 use Leopoletto\RobotsTxtParser\Audit\CrawlerVerdict;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
@@ -148,6 +149,7 @@ final class CrawlerCoherenceCheck implements AuditCheck
                 $count === 1 ? 'is' : 'are',
             ),
             status: Status::Warning,
+            category: Category::CrawlerAccess,
             summary: implode('; ', $pairs) . '.',
             impact: 'This is the opposite of what either intent would produce. Blocking bulk '
                 . 'collection while allowing people through is a common position; allowing bulk '

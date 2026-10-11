@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
@@ -37,6 +38,7 @@ final class FileSizeCheck implements AuditCheck
                 id: 'size-over-limit',
                 title: "The file exceeds the 500 KB crawl limit ({$readable})",
                 status: Status::Critical,
+                category: Category::CrawlerAccess,
                 summary: 'Google reads at most 500 KB of a robots.txt and ignores everything after it.',
                 impact: 'Rules beyond the cut-off are never applied. Because new rules are usually '
                     . 'appended, the ones being dropped are typically the most recent — and the '
@@ -53,6 +55,7 @@ final class FileSizeCheck implements AuditCheck
                 id: 'size-approaching-limit',
                 title: "The file is {$readable}, over half the crawl limit",
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'Google stops reading a robots.txt at 500 KB.',
                 impact: 'There is still headroom, but a file this size is usually repeating the same '
                     . 'rules across many user-agent groups, which is hard to keep consistent.',
@@ -65,6 +68,7 @@ final class FileSizeCheck implements AuditCheck
             id: 'size-ok',
             title: "File size is {$readable}",
             status: Status::Pass,
+            category: Category::CrawlerAccess,
             summary: 'Comfortably within the 500 KB that crawlers will read.',
             impact: 'The whole file is read, so every rule in it applies.',
         )];

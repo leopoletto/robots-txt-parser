@@ -2,6 +2,33 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
+## Pending for 2.0.0
+
+Not released. Everything here breaks something a consumer may rely on, so it ships together.
+
+- **Path tiers.** `SensitivePathCheck` reports a path only when listing it tells a reader
+  something they could not guess. `/admin`, `/administrator`, `/backend`, `/cpanel` and a bare
+  `/staging`, `/backup` or `/private` are no longer flagged. What is reported falls into a
+  tier: secrets and data files (`/.env.production`, `/dump.sql`, `/data/app.sqlite`),
+  specific names (`/backup-2023/`, `/app/staging/`, `/export.csv`), tool panels and wildcard
+  patterns. `Allow` lines are checked as well as `Disallow`; `dev`, `test` and `logs` count
+  only with a number, beside a sensitive token, or below the first level. The lists are
+  constructor parameters.
+- **Finding-id split.** The `sensitive-paths` finding no longer exists. There is one finding
+  per tier: `sensitive-paths-secrets`, `sensitive-paths-specific`, `sensitive-paths-tools` and
+  `sensitive-paths-wildcard`. Anything that looks a finding up by the old id finds nothing.
+- **`Finding::category`.** Every finding carries a `Category` (`crawler_access`, `security`,
+  `syntax`, `discovery`, `indexing`, `usage_preference`), also present in `toArray()`. It is a
+  required constructor argument, so a custom check must pass one.
+- **Severity recalibration.** Nothing in `SensitivePathCheck` is critical, because nothing is
+  fetched: secrets and specific names are warnings, tool panels and wildcard patterns are
+  info. A later reachability check may raise a secret to critical on a confirmed 200.
+- **`DeprecatedDirectiveCheck` replaced by the directive config check.** Not implemented yet.
+  Its verdict on `Crawl-delay` is wrong as it stands: it says crawlers ignore the directive,
+  and Bing honours it. Until it is replaced, the only change is that its `Noindex:` finding
+  is filed under `indexing`.
+- **Unknown-directive config and scoring change.** Not implemented yet.
+
 ## v1.0.1 - 2026-10-11
 
 - `SensitivePathCheck` no longer flags `/api`, `/graphql` or `/wp-admin`. Listing them

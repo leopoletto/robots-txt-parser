@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
@@ -35,6 +36,7 @@ final class IndexingDirectiveCheck implements AuditCheck
                 id: 'indexing-not-inspected',
                 title: 'Page directives could not be checked',
                 status: Status::Notice,
+                category: Category::Indexing,
                 summary: 'robots.txt disallows this URL, so the page was not requested and its meta '
                     . 'robots tags and X-Robots-Tag headers were not read.',
                 impact: 'A disallowed URL can still appear in search results if other sites link to '
@@ -57,6 +59,7 @@ final class IndexingDirectiveCheck implements AuditCheck
                 id: 'indexing-none',
                 title: 'No indexing directives on the requested page',
                 status: Status::Pass,
+                category: Category::Indexing,
                 summary: 'The page sends no robots meta tag and no X-Robots-Tag header.',
                 impact: 'Indexing is governed entirely by robots.txt and by whether the page is '
                     . 'linked to. Nothing is suppressing this page.',
@@ -78,6 +81,7 @@ final class IndexingDirectiveCheck implements AuditCheck
                 id: 'indexing-noindex',
                 title: 'The requested page is set to noindex',
                 status: Status::Warning,
+                category: Category::Indexing,
                 summary: 'A meta robots tag or X-Robots-Tag header instructs crawlers not to index this URL.',
                 impact: 'The page will be dropped from search results. That is the correct mechanism '
                     . 'for removing a page — worth confirming it is intended for this URL.',
@@ -99,6 +103,7 @@ final class IndexingDirectiveCheck implements AuditCheck
                 id: 'indexing-conflict',
                 title: 'Indexing directives contradict each other',
                 status: Status::Warning,
+                category: Category::Indexing,
                 summary: 'The page declares directives that cannot both apply.',
                 impact: 'Crawlers resolve a contradiction by taking the most restrictive reading, '
                     . 'which is usually not what the author intended when they added the '
@@ -112,6 +117,7 @@ final class IndexingDirectiveCheck implements AuditCheck
             id: 'indexing-ok',
             title: 'Page indexing directives are consistent',
             status: Status::Pass,
+            category: Category::Indexing,
             summary: sprintf(
                 '%d meta tag%s and %d X-Robots-Tag header%s, with no contradictions.',
                 count($meta),

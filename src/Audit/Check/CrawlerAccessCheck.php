@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\CrawlerDirectory;
 use Leopoletto\RobotsTxtParser\Audit\CrawlerVerdict;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
@@ -87,6 +88,7 @@ final class CrawlerAccessCheck implements AuditCheck
                 id: $id,
                 title: "{$label} can reach the site",
                 status: Status::Pass,
+                category: Category::CrawlerAccess,
                 summary: sprintf('All %d checked %s are allowed at the site root.', $total, $inline),
                 impact: $this->directory->upside($group),
                 crawlers: $allowed,
@@ -97,6 +99,7 @@ final class CrawlerAccessCheck implements AuditCheck
             id: $id,
             title: sprintf('%d of %d %s are blocked', count($blocked), $total, $inline),
             status: Status::Info,
+            category: Category::CrawlerAccess,
             summary: 'Blocked: ' . implode(', ', array_map(
                 static fn (CrawlerVerdict $c): string => $c->agent,
                 $blocked,

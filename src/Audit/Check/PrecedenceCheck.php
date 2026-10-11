@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
@@ -38,6 +39,7 @@ final class PrecedenceCheck implements AuditCheck
                 id: 'precedence-contradiction',
                 title: sprintf('%d path%s is both allowed and disallowed', count($contradictions), count($contradictions) === 1 ? '' : 's'),
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'The same group declares Allow and Disallow for an identical path.',
                 impact: 'Nothing is blocked that the author wanted blocked, and nothing breaks — but '
                     . 'the file does not do what reading it suggests. Order does not decide this: '
@@ -55,6 +57,7 @@ final class PrecedenceCheck implements AuditCheck
                 id: 'precedence-shadowed',
                 title: sprintf('%d rule%s can never take effect', count($shadowed), count($shadowed) === 1 ? '' : 's'),
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'A broader rule of the same type already covers these paths.',
                 impact: 'These lines change nothing. They are harmless, but they add length to a file '
                     . 'that has a size limit, and they make the real policy harder to read.',
@@ -69,6 +72,7 @@ final class PrecedenceCheck implements AuditCheck
                 id: 'precedence-duplicate',
                 title: sprintf('%d rule%s is declared more than once', count($duplicates), count($duplicates) === 1 ? '' : 's'),
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'The same directive and path appear repeatedly within one group.',
                 impact: 'Duplicates have no effect on crawling, but they inflate the file toward the '
                     . '500 KB limit and usually signal that the file is generated without dedup.',

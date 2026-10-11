@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
@@ -30,6 +31,7 @@ final class DeprecatedDirectiveCheck implements AuditCheck
                 id: 'deprecated-crawl-delay',
                 title: sprintf('Crawl-delay is declared %d time%s and Google ignores it', count($crawlDelays), count($crawlDelays) === 1 ? '' : 's'),
                 status: Status::Notice,
+                category: Category::Syntax,
                 summary: 'Crawl-delay was never part of the standard. Google has never supported it; '
                     . 'Bing and Yandex do.',
                 impact: 'Any rate limit intended for Googlebot is not being applied. If the goal was '
@@ -56,6 +58,7 @@ final class DeprecatedDirectiveCheck implements AuditCheck
                 id: 'deprecated-noindex',
                 title: 'A "Noindex:" directive appears in robots.txt',
                 status: Status::Warning,
+                category: Category::Indexing,
                 summary: 'Google removed support for Noindex in robots.txt in September 2019. '
                     . 'No crawler honours it.',
                 impact: 'Pages this line was meant to keep out of search are being indexed normally. '

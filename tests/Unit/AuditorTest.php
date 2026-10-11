@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace Leopoletto\RobotsTxtParser\Tests\Unit;
 
 use Leopoletto\RobotsTxtParser\Audit\Auditor;
+use Leopoletto\RobotsTxtParser\Audit\Category;
+use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Report;
 use Leopoletto\RobotsTxtParser\Audit\Status;
+use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Response;
 use Leopoletto\RobotsTxtParser\RobotsTxtParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
@@ -231,50 +236,68 @@ final class AuditorTest extends TestCase
     }
 
     #[Test]
-    public function it_flags_disclosed_sensitive_paths(): void
+    public function it_reports_disclosed_paths_by_how_much_they_give_away(): void
     {
+        // Each tier is covered line by line in SensitivePathCheckTest.
         $report = $this->audit(<<<'TXT'
             User-agent: *
             Disallow: /admin
-            Disallow: /staging/
+            Disallow: /backup-2023/
             Disallow: /.env
             TXT);
 
-        $finding = $report->find('sensitive-paths');
-        $this->assertSame(Status::Warning, $finding?->status);
-        $this->assertCount(3, (array) $finding?->evidence);
+        $this->assertSame(Status::Warning, $report->find('sensitive-paths-secrets')?->status);
+        $this->assertSame(Status::Warning, $report->find('sensitive-paths-specific')?->status);
+        $this->assertCount(1, (array) $report->find('sensitive-paths-specific')?->evidence);
+    }
+
+    /**
+     * @return iterable<string, array{string, Category}>
+     */
+    public static function categorisedFindings(): iterable
+    {
+        yield 'a blanket rule' => ["User-agent: *\nDisallow: /", 'blanket-block', Category::CrawlerAccess];
+        yield 'crawler access' => ["User-agent: *\nDisallow: /", 'crawler-access-search', Category::CrawlerAccess];
+        yield 'precedence' => ["User-agent: *\nDisallow: /a\nDisallow: /a", 'precedence-duplicate', Category::CrawlerAccess];
+        yield 'a sitemap' => ["User-agent: *\nDisallow: /x", 'sitemap-missing', Category::Discovery];
+        yield 'syntax' => ["User-agent: *\nDisallow: /x", 'syntax-clean', Category::Syntax];
+        yield 'a deprecated directive' => ["User-agent: *\nCrawl-delay: 10", 'deprecated-crawl-delay', Category::Syntax];
+        yield 'a deprecated noindex line' => ["User-agent: *\nNoindex: /x", 'deprecated-noindex', Category::Indexing];
+        yield 'file size' => ["User-agent: *\nDisallow: /x", 'size-ok', Category::CrawlerAccess];
+        yield 'a disclosed path' => ["User-agent: *\nDisallow: /.env", 'sensitive-paths-secrets', Category::Security];
     }
 
     #[Test]
-    public function it_does_not_mistake_a_similar_path_for_a_sensitive_one(): void
+    #[DataProvider('categorisedFindings')]
+    public function it_files_each_finding_under_a_category(string $robots, string $id, Category $category): void
     {
-        // "/developers" is public documentation, not a "/dev" environment.
-        $report = $this->audit("User-agent: *\nDisallow: /developers");
+        $finding = $this->audit($robots)->find($id);
 
-        $this->assertNull($report->find('sensitive-paths'));
+        $this->assertSame($category, $finding?->category);
+        $this->assertSame($category->value, $finding?->toArray()['category']);
     }
 
     #[Test]
-    public function it_does_not_flag_a_path_that_discloses_nothing_by_being_listed(): void
+    public function it_keeps_the_category_of_each_finding_when_one_check_reports_under_two(): void
     {
-        $report = $this->audit(<<<'TXT'
-            User-agent: *
-            Disallow: /api/_snippets/*
-            Disallow: /graphql
-            Disallow: /wp-admin/
-            TXT);
+        $check = new class () implements AuditCheck {
+            public function run(Response $response): array
+            {
+                return [
+                    new Finding('stub-access', 'Access', Status::Notice, Category::CrawlerAccess, 'Summary.', 'Impact.'),
+                    new Finding('stub-security', 'Security', Status::Warning, Category::Security, 'Summary.', 'Impact.'),
+                ];
+            }
+        };
 
-        $this->assertNull($report->find('sensitive-paths'));
-    }
+        $report = (new Auditor([$check]))->audit((new RobotsTxtParser())->parseText("User-agent: *\nDisallow: /x"));
 
-    #[Test]
-    public function it_advises_removing_a_sensitive_path_so_its_noindex_can_be_read(): void
-    {
-        $fix = (string) $this->audit("User-agent: *\nDisallow: /backups")->find('sensitive-paths')?->fix;
-
-        $this->assertStringContainsString('Remove these lines', $fix);
-        $this->assertStringContainsString('X-Robots-Tag', $fix);
-        $this->assertStringContainsString('no longer Disallowed', $fix);
+        $this->assertSame(Category::CrawlerAccess, $report->find('stub-access')?->category);
+        $this->assertSame(Category::Security, $report->find('stub-security')?->category);
+        $this->assertSame(
+            ['security', 'crawler_access'],
+            array_column($report->toArray()['findings'], 'category'),
+        );
     }
 
     #[Test]

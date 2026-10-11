@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
@@ -36,6 +37,7 @@ final class BlanketRuleCheck implements AuditCheck
                 id: 'blanket-empty',
                 title: 'No crawl rules are declared',
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'The file declares no User-agent groups, so every crawler may fetch every URL.',
                 impact: 'Nothing is restricted. That is a valid and common configuration, but it also '
                     . 'means no crawl budget is being steered away from low-value pages.',
@@ -55,6 +57,7 @@ final class BlanketRuleCheck implements AuditCheck
                 id: 'blanket-open',
                 title: 'Every URL is open to every crawler',
                 status: Status::Notice,
+                category: Category::CrawlerAccess,
                 summary: 'The file declares user agents but no effective Disallow rule.',
                 impact: 'Every URL is crawlable, including any that exist only for internal use. '
                     . 'Crawl budget is spent evenly rather than on pages worth ranking.',
@@ -79,6 +82,7 @@ final class BlanketRuleCheck implements AuditCheck
                 id: 'blanket-block',
                 title: 'The whole site is closed to all crawlers',
                 status: Status::Critical,
+                category: Category::CrawlerAccess,
                 summary: '"Disallow: /" applies to "User-agent: *", and nothing overrides it, so no '
                     . 'crawler may fetch any URL.',
                 impact: 'Nothing on this domain can be indexed. If this is a production site, it is '
@@ -95,6 +99,7 @@ final class BlanketRuleCheck implements AuditCheck
             id: 'blanket-allowlist',
             title: 'The file blocks everything by default',
             status: Status::Notice,
+            category: Category::CrawlerAccess,
             summary: $this->overrideSummary($named, $exceptions),
             impact: 'Any crawler this file does not name is refused every URL. A crawler that is '
                 . 'named ignores the wildcard group entirely and follows only its own rules, so the '

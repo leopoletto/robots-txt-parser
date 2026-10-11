@@ -23,6 +23,8 @@ final readonly class Finding
         public string $id,
         public string $title,
         public Status $status,
+        /** The subject the finding belongs to. */
+        public Category $category,
         public string $summary,
         public string $impact,
         public ?string $fix = null,
@@ -48,6 +50,7 @@ final readonly class Finding
             'id' => $this->id,
             'title' => $this->title,
             'status' => $this->status->value,
+            'category' => $this->category->value,
             'summary' => $this->summary,
             'intent' => $this->intent,
             'impact' => $this->impact,

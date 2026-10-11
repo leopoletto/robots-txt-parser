@@ -232,7 +232,7 @@ almost always a rule that named the wrong user agent.
 | `SitemapCheck` | Declared, absolute, reachable, and not blocked by this same file |
 | `SyntaxCheck` | Lines crawlers will skip |
 | `DeprecatedDirectiveCheck` | `Crawl-delay`, `Noindex:` — directives that no longer do what their author expects |
-| `SensitivePathCheck` | `/admin`, `/staging`, `/backup` and similar, disclosed to a public file |
+| `SensitivePathCheck` | Paths the file gives away by naming them: secrets and data files, names nobody would have guessed, tool panels |
 | `PrecedenceCheck` | Contradictions, shadowed rules, duplicates |
 | `FileSizeCheck` | The 500 KB ceiling crawlers enforce |
 

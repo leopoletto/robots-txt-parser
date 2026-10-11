@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit\Check;
 
+use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
@@ -40,6 +41,7 @@ final class SyntaxCheck implements AuditCheck
                 id: 'syntax-clean',
                 title: 'No syntax problems',
                 status: Status::Pass,
+                category: Category::Syntax,
                 summary: 'Every line parses as a directive crawlers understand.',
                 impact: 'Nothing in the file is being silently skipped.',
             )];
@@ -54,6 +56,7 @@ final class SyntaxCheck implements AuditCheck
             id: 'syntax-issues',
             title: sprintf('%d line%s will be ignored by crawlers', count($issues), count($issues) === 1 ? '' : 's'),
             status: Status::Warning,
+            category: Category::Syntax,
             summary: 'Lines that do not parse as a known directive: ' . implode(', ', array_keys($byType)) . '.',
             impact: 'A crawler skips what it cannot parse, without reporting anything. A misspelled '
                 . '"Dissalow" leaves a path fully crawlable while the file appears to restrict it.',
