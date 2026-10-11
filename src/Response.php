@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser;
 
+use Leopoletto\RobotsTxtParser\Http\PageProbeResult;
 use Leopoletto\RobotsTxtParser\Matching\Decision;
 use Leopoletto\RobotsTxtParser\Parsing\Document;
 
@@ -29,6 +30,7 @@ final readonly class Response
         private ?int $pageStatusCode = null,
         private ?string $error = null,
         private ?Decision $pageDecision = null,
+        private ?PageProbeResult $pageProbe = null,
     ) {
     }
 
@@ -128,6 +130,18 @@ final readonly class Response
     public function error(): ?string
     {
         return $this->error;
+    }
+
+    /**
+     * What the request for the page found, as it was sent. Null when the page
+     * was not requested: there was none, or robots.txt disallowed it.
+     *
+     * Kept so the answer can be stored and replayed when the same robots.txt
+     * is parsed again for this URL without the network.
+     */
+    public function pageProbe(): ?PageProbeResult
+    {
+        return $this->pageProbe;
     }
 
     /**

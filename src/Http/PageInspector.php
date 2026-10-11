@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Http;
 
-use Leopoletto\RobotsTxtParser\Contract\Record;
-use Leopoletto\RobotsTxtParser\Extraction\HeaderExtractor;
+use Leopoletto\RobotsTxtParser\Contract\PageProber;
 use Leopoletto\RobotsTxtParser\Extraction\MetaTagExtractor;
 use Throwable;
 
@@ -17,36 +16,33 @@ use Throwable;
  * about. The origin's home page would carry different directives, and
  * reporting those as if they governed the requested URL would be wrong.
  */
-final class PageInspector
+final class PageInspector implements PageProber
 {
     public function __construct(
         private readonly RobotsFetcher $fetcher,
+        private readonly string $userAgent,
         private readonly HttpConfiguration $config = new HttpConfiguration(),
-        private readonly HeaderExtractor $headers = new HeaderExtractor(),
         private readonly MetaTagExtractor $meta = new MetaTagExtractor(),
     ) {
     }
 
-    /**
-     * @return array{records: list<Record>, fetch: FetchResult}
-     */
-    public function inspect(string $pageUrl, BotSignature $signature): array
+    public function probe(string $url): PageProbeResult
     {
-        $fetch = $this->fetcher->page($pageUrl, $signature->value);
+        $fetch = $this->fetcher->page($url, $this->userAgent);
 
         if (! $fetch->succeeded()) {
-            return ['records' => [], 'fetch' => $fetch];
+            return new PageProbeResult($url, $fetch->statusCode, error: $fetch->error);
         }
 
-        $records = $this->headers->extract($fetch->header('X-Robots-Tag'), origin: 'page');
+        $metaTags = [];
 
         if ($fetch->isOk()) {
-            foreach ($this->meta->extract($this->readHead($fetch)) as $metaDirective) {
-                $records[] = $metaDirective;
+            foreach ($this->meta->extract($this->readHead($fetch)) as $tag) {
+                $metaTags[] = ['name' => $tag->name, 'content' => $tag->raw];
             }
         }
 
-        return ['records' => $records, 'fetch' => $fetch];
+        return new PageProbeResult($url, $fetch->statusCode, $fetch->header('X-Robots-Tag'), $metaTags);
     }
 
     /**

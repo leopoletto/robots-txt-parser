@@ -52,6 +52,18 @@ final class Document
         return new self([...$this->records, ...$records], $this->groups, $this->size, $this->truncated);
     }
 
+    /**
+     * The same document, measured as the given number of bytes.
+     *
+     * Kept content has its line endings normalised, so a file parsed again
+     * from it is shorter than it was on the wire; this restores the size the
+     * file was observed to have.
+     */
+    public function withSize(int $size): self
+    {
+        return new self($this->records, $this->groups, $size, $this->truncated);
+    }
+
     /** @return list<Record> */
     public function records(): array
     {

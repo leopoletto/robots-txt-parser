@@ -6,16 +6,17 @@ namespace Leopoletto\RobotsTxtParser;
 
 use Leopoletto\RobotsTxtParser\Agents\ShardedAgentRepository;
 use Leopoletto\RobotsTxtParser\Contract\AgentRepository;
-use Leopoletto\RobotsTxtParser\Contract\Record;
+use Leopoletto\RobotsTxtParser\Contract\PageProber;
 use Leopoletto\RobotsTxtParser\Contract\Source;
 use Leopoletto\RobotsTxtParser\Exception\MissingUserAgent;
 use Leopoletto\RobotsTxtParser\Extraction\HeaderExtractor;
 use Leopoletto\RobotsTxtParser\Http\BotSignature;
-use Leopoletto\RobotsTxtParser\Http\FetchResult;
 use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
 use Leopoletto\RobotsTxtParser\Http\PageInspector;
+use Leopoletto\RobotsTxtParser\Http\PageProbeResult;
 use Leopoletto\RobotsTxtParser\Http\RobotsFetcher;
 use Leopoletto\RobotsTxtParser\Http\RobotsUrl;
+use Leopoletto\RobotsTxtParser\Matching\Decision;
 use Leopoletto\RobotsTxtParser\Model\Severity;
 use Leopoletto\RobotsTxtParser\Parsing\ContentBuffer;
 use Leopoletto\RobotsTxtParser\Parsing\Document;
@@ -38,6 +39,8 @@ final class RobotsTxtParser
     private ?BotSignature $signature = null;
 
     private bool $keepContent = false;
+
+    private ?PageProber $pageProber = null;
 
     public function __construct(
         private readonly HttpConfiguration $config = new HttpConfiguration(),
@@ -77,6 +80,17 @@ final class RobotsTxtParser
         return $this;
     }
 
+    /**
+     * Ask this prober for a page's indexing directives instead of requesting
+     * the page, for instance to replay what an earlier fetch found.
+     */
+    public function withPageProber(PageProber $prober): self
+    {
+        $this->pageProber = $prober;
+
+        return $this;
+    }
+
     public function parseText(string $content): Response
     {
         return $this->parseSource(new TextSource($content, $this->config->maxBytes));
@@ -85,6 +99,50 @@ final class RobotsTxtParser
     public function parseFile(string $path): Response
     {
         return $this->parseSource(new FileSource($path, $this->config->maxBytes));
+    }
+
+    /**
+     * Analyse a URL from a robots.txt already in hand, such as one stored
+     * from an earlier fetch, without requesting the file again.
+     *
+     * Whether our bot may fetch the page is decided afresh from the given
+     * content, exactly as parseUrl() does. The page's own directives are asked
+     * of the prober set with withPageProber(); with none set the page is
+     * requested, so pass one that replays a stored result to stay offline.
+     *
+     * @param int|null     $size    The size the file had when it was fetched, when
+     *                              known. Content kept by keepContent() has normalised
+     *                              line endings and measures less than the original.
+     * @param list<string> $headers The X-Robots-Tag values sent with the robots.txt
+     *                              itself, which are not part of the file.
+     */
+    public function parseTextForUrl(string $content, string $url, ?int $size = null, array $headers = []): Response
+    {
+        $signature = $this->signature ?? throw MissingUserAgent::make();
+
+        $url = RobotsUrl::withScheme($url);
+
+        $buffer = $this->keepContent ? new ContentBuffer() : null;
+        $document = $this->parser->parse(new TextSource($content, $this->config->maxBytes), $buffer);
+
+        if ($size !== null) {
+            $document = $document->withSize($size);
+        }
+
+        // In the place parseUrl() puts them: before anything the page sends.
+        $document = $document->withRecords((new HeaderExtractor())->extract($headers, origin: 'robots.txt'));
+
+        [$document, $pageStatus, $decision, $probe] = $this->inspectPage($url, $document, $signature);
+
+        return new Response(
+            document: $document,
+            content: $buffer?->content(),
+            requestedUrl: $url,
+            robotsUrl: RobotsUrl::forOrigin($url),
+            pageStatusCode: $pageStatus,
+            pageDecision: $decision,
+            pageProbe: $probe,
+        );
     }
 
     /**
@@ -151,7 +209,7 @@ final class RobotsTxtParser
             (new HeaderExtractor())->extract($fetch->header('X-Robots-Tag'), origin: 'robots.txt')
         );
 
-        [$document, $pageStatus, $decision] = $this->inspectPage($url, $document, $signature, $fetch);
+        [$document, $pageStatus, $decision, $probe] = $this->inspectPage($url, $document, $signature);
 
         return new Response(
             document: $document,
@@ -163,6 +221,7 @@ final class RobotsTxtParser
             statusCode: $fetch->statusCode,
             pageStatusCode: $pageStatus,
             pageDecision: $decision,
+            pageProbe: $probe,
         );
     }
 
@@ -178,17 +237,13 @@ final class RobotsTxtParser
      *    request it. A tool that reports on robots.txt has no business
      *    ignoring one.
      *
-     * @return array{0: Document, 1: int|null, 2: \Leopoletto\RobotsTxtParser\Matching\Decision|null}
+     * @return array{0: Document, 1: int|null, 2: Decision|null, 3: PageProbeResult|null}
      */
-    private function inspectPage(
-        string $url,
-        Document $document,
-        BotSignature $signature,
-        FetchResult $robotsFetch,
-    ): array {
+    private function inspectPage(string $url, Document $document, BotSignature $signature): array
+    {
         // The URL already is the robots.txt; there is no separate page.
         if (RobotsUrl::isRobotsTxt($url)) {
-            return [$document, null, null];
+            return [$document, null, null, null];
         }
 
         $decision = $document->decide($signature->productToken, RobotsUrl::targetPath($url));
@@ -211,19 +266,13 @@ final class RobotsTxtParser
                     . 'so meta tags and page headers were not read',
                 Severity::Low,
                 'page_disallowed',
-            )]), null, $decision];
+            )]), null, $decision, null];
         }
 
-        $inspection = (new PageInspector($this->fetcher(), $this->config))->inspect($url, $signature);
+        $prober = $this->pageProber ?? new PageInspector($this->fetcher(), $signature->value, $this->config);
+        $probe = $prober->probe($url);
 
-        /** @var list<Record> $records */
-        $records = $inspection['records'];
-
-        return [
-            $document->withRecords($records),
-            $inspection['fetch']->statusCode,
-            $decision,
-        ];
+        return [$document->withRecords($probe->records()), $probe->statusCode, $decision, $probe];
     }
 
     private function parseSource(Source $source): Response
