@@ -12,8 +12,10 @@ use GuzzleHttp\Psr7\Response as PsrResponse;
 use Leopoletto\RobotsTxtParser\Exception\MissingUserAgent;
 use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
 use Leopoletto\RobotsTxtParser\Http\RobotsFetcher;
+use Leopoletto\RobotsTxtParser\Record\Issue;
 use Leopoletto\RobotsTxtParser\Response;
 use Leopoletto\RobotsTxtParser\RobotsTxtParser;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
@@ -194,6 +196,45 @@ final class ParseUrlTest extends TestCase
 
         $this->assertSame(200, $response->statusCode());
         $this->assertSame(404, $response->pageStatusCode());
+    }
+
+    #[Test]
+    #[DataProvider('unreachableStatuses')]
+    public function it_does_not_fetch_the_page_when_robots_txt_is_unreachable(int $status): void
+    {
+        // RFC 9309 §2.3.1.4: a server error makes every path disallowed.
+        $response = $this->parse('https://example.com/page', [
+            new PsrResponse($status, [], '<html><body>Service unavailable</body></html>'),
+            new PsrResponse(200, [], '<html><head></head></html>'),
+        ]);
+
+        $this->assertCount(1, $this->requests);
+        $this->assertSame($status, $response->statusCode());
+        $this->assertFalse($response->pageInspected());
+        $this->assertNull($response->pageStatusCode());
+
+        $types = array_map(static fn (Issue $issue): string => $issue->type, $response->records()->issues());
+        $this->assertContains('robots_unreachable', $types);
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function unreachableStatuses(): array
+    {
+        return ['server error' => [500], 'unavailable' => [503], 'too many requests' => [429]];
+    }
+
+    #[Test]
+    public function it_fetches_the_page_when_robots_txt_is_missing(): void
+    {
+        // RFC 9309 §2.3.1.3: a 4xx means there are no rules, so any path may be fetched.
+        $this->parse('https://example.com/page', [
+            new PsrResponse(404, [], 'Not found'),
+            new PsrResponse(200, [], '<html><head></head></html>'),
+        ]);
+
+        $this->assertCount(2, $this->requests);
     }
 
     #[Test]

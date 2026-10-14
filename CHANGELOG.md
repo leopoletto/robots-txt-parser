@@ -9,6 +9,13 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   honours it.
 - **Unknown-directive config and scoring change.**
 
+## v2.0.1 - 2026-10-14
+
+- **An unreachable robots.txt blocks the page fetch.** When robots.txt answers with a 5xx or
+  a 429, `parseUrl()` no longer requests the page: RFC 9309 section 2.3.1.4 treats every path
+  as disallowed. The response carries a `robots_unreachable` issue, and `pageInspected()` is
+  false. A 4xx other than 429 still means there are no rules, so the page is fetched.
+
 ## v2.0.0 - 2026-10-11
 
 Everything here breaks something a consumer may rely on.

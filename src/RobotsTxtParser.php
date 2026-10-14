@@ -209,7 +209,7 @@ final class RobotsTxtParser
             (new HeaderExtractor())->extract($fetch->header('X-Robots-Tag'), origin: 'robots.txt')
         );
 
-        [$document, $pageStatus, $decision, $probe] = $this->inspectPage($url, $document, $signature);
+        [$document, $pageStatus, $decision, $probe] = $this->inspectPage($url, $document, $signature, $fetch->statusCode);
 
         return new Response(
             document: $document,
@@ -236,14 +236,30 @@ final class RobotsTxtParser
      * 2. If robots.txt disallows that URL for our product token, we do not
      *    request it. A tool that reports on robots.txt has no business
      *    ignoring one.
+     * 3. If robots.txt answered with a server error, we do not request it
+     *    either. RFC 9309 §2.3.1.4 treats the file as unreachable and every
+     *    path as disallowed. 429 counts as one too: the site asked us to stop.
+     *
+     * @param int|null $robotsStatus The status robots.txt answered with; null
+     *                               when the file was not fetched just now.
      *
      * @return array{0: Document, 1: int|null, 2: Decision|null, 3: PageProbeResult|null}
      */
-    private function inspectPage(string $url, Document $document, BotSignature $signature): array
+    private function inspectPage(string $url, Document $document, BotSignature $signature, ?int $robotsStatus = null): array
     {
         // The URL already is the robots.txt; there is no separate page.
         if (RobotsUrl::isRobotsTxt($url)) {
             return [$document, null, null, null];
+        }
+
+        if ($robotsStatus !== null && ($robotsStatus >= 500 || $robotsStatus === 429)) {
+            return [$document->withRecords([new Issue(
+                0,
+                "Page not fetched: robots.txt answered HTTP {$robotsStatus}, so every path counts as disallowed "
+                    . '(RFC 9309, section 2.3.1.4) and meta tags and page headers were not read',
+                Severity::Low,
+                'robots_unreachable',
+            )]), null, null, null];
         }
 
         $decision = $document->decide($signature->productToken, RobotsUrl::targetPath($url));
