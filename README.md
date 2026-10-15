@@ -434,6 +434,9 @@ A bot challenge or block page (Cloudflare, Akamai, HUMAN, DataDome) answered in 
 is recognised by markers only those pages carry, and is not read: its own `noindex` is not the
 site's. A CDN's name alone is never taken as a challenge.
 
+Meta tags inside HTML comments, `<script>` and `<noscript>` are ignored, since no browser applies
+them. Tags added by JavaScript at runtime are not seen, because the page is not rendered.
+
 ### HTTP metadata
 
 ```php

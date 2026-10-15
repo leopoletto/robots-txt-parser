@@ -69,9 +69,10 @@ final class PageInspector implements PageProber
      * partway yields an error rather than the part that arrived: a head cut off
      * by a dropped connection would look like a page without directives.
      *
-     * @return array{0: string, 1: bool, 2: string|null} The HTML read, whether the
-     *                                                   size limit cut it before </head>,
-     *                                                   and why reading failed, if it did.
+     * @return array{0: string, 1: bool, 2: string|null} The HTML read, whether it was
+     *                                                   cut before </head> by the size limit
+     *                                                   or partway through a <meta> tag, and
+     *                                                   why reading failed, if it did.
      */
     private function readHead(FetchResult $fetch): array
     {
@@ -109,7 +110,8 @@ final class PageInspector implements PageProber
             }
         }
 
-        $truncated = ! $headClosed && strlen($html) >= $this->config->maxHtmlBytes;
+        $truncated = ! $headClosed
+            && (strlen($html) >= $this->config->maxHtmlBytes || $this->meta->endsInsideTag($html));
 
         return [$html, $truncated, $error];
     }

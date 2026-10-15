@@ -26,6 +26,10 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   block page by markers specific to Cloudflare, Akamai, HUMAN and DataDome. Such a page sets
   `PageProbeResult::$challenge`, is not observed, and contributes no directives, so a
   challenge's own `noindex` is no longer reported as the site's.
+- **Dead markup is not read for meta tags.** `MetaTagExtractor` ignores tags inside HTML comments,
+  `<script>` and `<noscript>`, so a commented-out `noindex` no longer counts. A page whose read
+  ends partway through a `<meta>` tag is recorded as truncated instead of losing the tag silently
+  (`MetaTagExtractor::endsInsideTag()`).
 
 ## v2.0.1 - 2026-10-14
 

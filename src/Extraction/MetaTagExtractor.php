@@ -37,6 +37,8 @@ final class MetaTagExtractor
      */
     public function extract(string $html): array
     {
+        $html = self::withoutDeadMarkup($html);
+
         // Directives live in <head>; stopping at </head> avoids scanning a body
         // that may be megabytes of markup.
         $head = stripos($html, '</head>');
@@ -69,6 +71,33 @@ final class MetaTagExtractor
         }
 
         return $records;
+    }
+
+    /**
+     * Whether the HTML stops partway through a <meta> tag, as when a read is
+     * cut short: a tag split there can be neither read nor ruled out.
+     */
+    public function endsInsideTag(string $html): bool
+    {
+        return preg_match('/<meta\b[^>]*$/i', self::withoutDeadMarkup($html)) === 1;
+    }
+
+    /**
+     * Remove what a browser never applies as a tag: comments, and the content
+     * of <script> and <noscript>. A commented-out noindex is not a noindex.
+     * One left open at the end of the buffer runs to the end.
+     */
+    private static function withoutDeadMarkup(string $html): string
+    {
+        return (string) preg_replace(
+            [
+                '/<!--.*?(?:-->|$)/s',
+                '/<script\b[^>]*>.*?(?:<\/script\s*>|$)/is',
+                '/<noscript\b[^>]*>.*?(?:<\/noscript\s*>|$)/is',
+            ],
+            '',
+            $html,
+        );
     }
 
     private function attribute(string $tag, string $attribute): ?string

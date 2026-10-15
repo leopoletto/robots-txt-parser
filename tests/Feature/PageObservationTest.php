@@ -166,4 +166,15 @@ final class PageObservationTest extends TestCase
         $this->assertFalse(PageProbeResult::fromArray(['url' => self::URL, 'statusCode' => null, 'error' => 'timed out'])->observed());
         $this->assertFalse(PageProbeResult::fromArray(['url' => self::URL, 'statusCode' => 200])->truncated);
     }
+
+    #[Test]
+    public function a_head_that_ends_inside_a_meta_tag_is_recorded_as_truncated(): void
+    {
+        $response = $this->parse([
+            new PsrResponse(200, [], self::ROBOTS),
+            new PsrResponse(200, [], '<html><head><meta name="robots" content="noi'),
+        ]);
+
+        $this->assertTrue($response->pageProbe()?->truncated);
+    }
 }

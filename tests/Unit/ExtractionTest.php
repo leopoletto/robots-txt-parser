@@ -127,4 +127,50 @@ final class ExtractionTest extends TestCase
 
         $this->assertTrue($records[0]->validation->has('nofollow'));
     }
+
+    #[Test]
+    public function a_commented_out_tag_is_not_read(): void
+    {
+        $html = '<head><!-- <meta name="robots" content="noindex"> --></head>';
+
+        $this->assertSame([], (new MetaTagExtractor())->extract($html));
+    }
+
+    #[Test]
+    public function a_tag_inside_noscript_or_script_is_not_read(): void
+    {
+        $html = '<head><noscript><meta name="robots" content="noindex"></noscript>'
+            . '<script>document.write(\'<meta name="robots" content="noindex">\');</script></head>';
+
+        $this->assertSame([], (new MetaTagExtractor())->extract($html));
+    }
+
+    #[Test]
+    public function a_real_tag_after_a_comment_is_read(): void
+    {
+        $html = '<head><!-- old: <meta name="robots" content="index"> --><meta name="robots" content="noindex"></head>';
+
+        $records = (new MetaTagExtractor())->extract($html);
+
+        $this->assertCount(1, $records);
+        $this->assertSame('noindex', $records[0]->raw);
+    }
+
+    #[Test]
+    public function an_unterminated_comment_hides_everything_after_it(): void
+    {
+        $html = '<head><!-- <meta name="robots" content="noindex">';
+
+        $this->assertSame([], (new MetaTagExtractor())->extract($html));
+        $this->assertFalse((new MetaTagExtractor())->endsInsideTag($html));
+    }
+
+    #[Test]
+    public function it_knows_when_html_stops_inside_a_meta_tag(): void
+    {
+        $extractor = new MetaTagExtractor();
+
+        $this->assertTrue($extractor->endsInsideTag('<head><meta name="robots" content="noi'));
+        $this->assertFalse($extractor->endsInsideTag('<head><meta name="robots" content="noindex">'));
+    }
 }
