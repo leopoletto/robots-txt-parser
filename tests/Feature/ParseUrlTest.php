@@ -9,6 +9,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response as PsrResponse;
+use Leopoletto\RobotsTxtParser\Audit\Auditor;
 use Leopoletto\RobotsTxtParser\Exception\MissingUserAgent;
 use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
 use Leopoletto\RobotsTxtParser\Http\RobotsFetcher;
@@ -235,6 +236,69 @@ final class ParseUrlTest extends TestCase
         ]);
 
         $this->assertCount(2, $this->requests);
+    }
+
+    #[Test]
+    #[DataProvider('missingStatuses')]
+    public function a_missing_robots_txt_is_an_empty_file_and_the_page_is_fetched(int $status): void
+    {
+        // RFC 9309 §2.3.1.3: no file means no rules. The error page is not parsed.
+        $response = $this->parse('https://example.com/page', [
+            new PsrResponse($status, [], "<html><body>Not found: no colon here\nDisallow: /</body></html>"),
+            new PsrResponse(200, [], '<html><head></head></html>'),
+        ]);
+
+        $this->assertNull($response->error());
+        $this->assertSame($status, $response->statusCode());
+        $this->assertSame([], $response->records()->directives());
+        $this->assertSame(['robots_missing'], array_map(
+            static fn (Issue $issue): string => $issue->type,
+            $response->records()->issues(),
+        ));
+        $this->assertCount(2, $this->requests);
+
+        // A missing file is not a syntax fault in it.
+        $this->assertFalse((new Auditor())->audit($response)->has('syntax-issues'));
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function missingStatuses(): array
+    {
+        return ['404' => [404], '410' => [410]];
+    }
+
+    #[Test]
+    public function an_unreachable_robots_txt_is_not_counted_as_a_syntax_fault(): void
+    {
+        $response = $this->parse('https://example.com/page', [new PsrResponse(503, [], '')]);
+
+        $this->assertFalse((new Auditor())->audit($response)->has('syntax-issues'));
+    }
+
+    #[Test]
+    #[DataProvider('refusedStatuses')]
+    public function a_refused_robots_txt_is_an_error_and_the_page_is_not_fetched(int $status): void
+    {
+        $response = $this->parse('https://example.com/page', [
+            new PsrResponse($status, [], "User-agent: *\nDisallow: /\n"),
+            new PsrResponse(200, [], '<html><head></head></html>'),
+        ]);
+
+        $this->assertNotNull($response->error());
+        $this->assertStringContainsString("HTTP {$status}", (string) $response->error());
+        $this->assertSame([], $response->records()->directives());
+        $this->assertCount(1, $this->requests);
+        $this->assertNull($response->pageProbe());
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function refusedStatuses(): array
+    {
+        return ['401' => [401], '403' => [403], '418' => [418]];
     }
 
     #[Test]

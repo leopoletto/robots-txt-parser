@@ -23,7 +23,15 @@ use Leopoletto\RobotsTxtParser\Response;
 final class SyntaxCheck implements AuditCheck
 {
     /** Issue types that describe our request rather than the document. */
-    private const FETCH_ISSUES = ['page_disallowed', 'fetch_failed', 'empty_response', 'too_many_redirects'];
+    private const FETCH_ISSUES = [
+        'page_disallowed',
+        'fetch_failed',
+        'empty_response',
+        'too_many_redirects',
+        'robots_unreachable',
+        'robots_missing',
+        'robots_refused',
+    ];
 
     /** Reported by their own dedicated checks, with better advice. */
     private const HANDLED_ELSEWHERE = ['truncated', 'ineffective_directive', 'nonstandard_directive'];

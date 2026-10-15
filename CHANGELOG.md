@@ -61,6 +61,17 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   sitemap on another origin is fetched only when the `decideElsewhere` closure says that origin's
   robots.txt allows it, is `blocked` when it says not, and is `skipped` without one. The package
   never fetches another origin's robots.txt.
+- **A 4xx on robots.txt is either a missing file or a refusal.** This replaces the 2.0.1 rule
+  that "a 4xx other than 429 still means there are no rules, so the page is fetched". A 404 or
+  410 is a missing file: its error page is no longer parsed as robots.txt, the document is empty
+  with a `robots_missing` issue (low), every path is allowed per RFC 9309 §2.3.1.3, and the page
+  is fetched. A 401, 403 or any other 4xx but 429 is a refusal: the body is not parsed, the page
+  is not requested, and `error()` is set with a `robots_refused` issue. This departs from the RFC,
+  which reads every 4xx as "no file", so that a bot turned away does not knock again. 429 and
+  5xx are unchanged.
+- **Fetch issues are not syntax faults.** `SyntaxCheck` counted the `robots_unreachable` issue
+  added in 2.0.1 as a line crawlers would ignore. It now leaves it out, with `robots_missing` and
+  `robots_refused`.
 
 ## v2.0.1 - 2026-10-14
 

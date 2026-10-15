@@ -25,7 +25,9 @@ use Leopoletto\RobotsTxtParser\Record\Issue;
 use Leopoletto\RobotsTxtParser\Source\FileSource;
 use Leopoletto\RobotsTxtParser\Source\StreamSource;
 use Leopoletto\RobotsTxtParser\Source\TextSource;
+use Psr\Http\Message\StreamInterface;
 use RuntimeException;
+use Throwable;
 
 /**
  * Parses robots.txt from a URL, a file, or a string.
@@ -201,6 +203,54 @@ final class RobotsTxtParser
             );
         }
 
+        $status = $fetch->statusCode ?? 0;
+
+        // RFC 9309 §2.3.1.3: a missing file means there are no rules. The
+        // error page is not the file, so it is not parsed; the page itself may
+        // be fetched like any other allowed URL.
+        if ($status === 404 || $status === 410) {
+            self::discard($body);
+
+            $document = new Document([new Issue(
+                0,
+                "No robots.txt (HTTP {$status}): every path is allowed (RFC 9309, section 2.3.1.3)",
+                Severity::Low,
+                'robots_missing',
+            )], []);
+
+            [$document, $pageStatus, $decision, $probe] = $this->inspectPage($url, $document, $signature, $status);
+
+            return new Response(
+                document: $document,
+                requestedUrl: $url,
+                robotsUrl: $robotsUrl,
+                finalUrl: $fetch->finalUrl,
+                redirects: $fetch->redirects,
+                statusCode: $status,
+                pageStatusCode: $pageStatus,
+                pageDecision: $decision,
+                pageProbe: $probe,
+            );
+        }
+
+        // Any other 4xx but 429 is a refusal, not a missing file: the site
+        // turned our bot away, so it is not asked for the page either.
+        if ($status >= 400 && $status < 500 && $status !== 429) {
+            self::discard($body);
+
+            $reason = "robots.txt answered HTTP {$status}, so the site may be blocking automated requests";
+
+            return new Response(
+                document: new Document([new Issue(0, $reason, Severity::High, 'robots_refused')], []),
+                requestedUrl: $url,
+                robotsUrl: $robotsUrl,
+                finalUrl: $fetch->finalUrl,
+                redirects: $fetch->redirects,
+                statusCode: $status,
+                error: $reason,
+            );
+        }
+
         $buffer = $this->keepContent ? new ContentBuffer() : null;
 
         // A body that stops partway, or runs past the timeout, is not a
@@ -256,6 +306,7 @@ final class RobotsTxtParser
      * 3. If robots.txt answered with a server error, we do not request it
      *    either. RFC 9309 §2.3.1.4 treats the file as unreachable and every
      *    path as disallowed. 429 counts as one too: the site asked us to stop.
+     *    A refusing 4xx never reaches here; parseUrl() stops before it.
      *
      * @param int|null $robotsStatus The status robots.txt answered with; null
      *                               when the file was not fetched just now.
@@ -306,6 +357,18 @@ final class RobotsTxtParser
         $probe = $prober->probe($url);
 
         return [$document->withRecords($probe->records()), $probe->statusCode, $decision, $probe];
+    }
+
+    /**
+     * Close a body that will not be read.
+     */
+    private static function discard(StreamInterface $body): void
+    {
+        try {
+            $body->close();
+        } catch (Throwable) {
+            // Nothing is read from it either way.
+        }
     }
 
     private function parseSource(Source $source): Response

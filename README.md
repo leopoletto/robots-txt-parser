@@ -386,6 +386,9 @@ so a reader can account for all of them.
 | `empty_response` | The response carried no body |
 | `truncated` | The document exceeded the size limit |
 | `page_disallowed` | The page was not fetched because robots.txt forbade it |
+| `robots_missing` | robots.txt answered 404 or 410: there is no file, so every path is allowed |
+| `robots_refused` | robots.txt answered another 4xx (not 429): the site turned the bot away |
+| `robots_unreachable` | robots.txt answered 5xx or 429, so every path counts as disallowed |
 
 `fetch_failed`, `too_many_redirects` and `empty_response` mean no body was read, and each sets
 `$response->error()`, so a response with no error always carries a file that was actually read.
@@ -440,6 +443,18 @@ $response->pageInspected();          // false
 $response->pageDecision()->allowed;  // false
 $response->pageDecision()->rule;     // the rule that blocked it
 ```
+
+**What the robots.txt status means.** RFC 9309 governs what each answer implies:
+
+| robots.txt answered | Treated as | Body parsed | Page fetched | `error()` |
+| --- | --- | --- | --- | --- |
+| 2xx | The file | Yes | If allowed | No |
+| 404, 410 | No file: every path allowed (§2.3.1.3), `robots_missing` | No | If allowed | No |
+| 401, 403, other 4xx | A refusal, `robots_refused` | No | No | Yes |
+| 429, 5xx | Unreachable: every path disallowed (§2.3.1.4), `robots_unreachable` | Yes | No | No |
+
+The RFC reads every 4xx as "no file". This package reads 401, 403 and the rest as a refusal instead,
+so a bot that was turned away does not go on to request the page.
 
 **A page that was not read is not audited.** Directives are read only from a page that answered
 2xx and whose body arrived whole. A 4xx or 5xx, a timeout, or a body that fails partway leaves the
