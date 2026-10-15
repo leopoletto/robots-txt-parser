@@ -51,8 +51,9 @@ abstract class ChunkedSource implements Source
                 continue;
             }
 
+            // Reaching the limit exactly is not truncation; only a byte past it is.
             $remaining = $this->maxBytes - $this->bytesRead;
-            if (strlen($chunk) >= $remaining) {
+            if (strlen($chunk) > $remaining) {
                 $chunk = substr($chunk, 0, max(0, $remaining));
                 $this->truncated = true;
             }
@@ -106,8 +107,10 @@ abstract class ChunkedSource implements Source
             }
         }
 
-        // A final line without a trailing terminator still counts.
-        if ($offset < strlen($buffer)) {
+        // A final line without a trailing terminator still counts — unless the
+        // limit cut it, when it is a fragment: "Disallow: /private-area" cut to
+        // "Disallow: /priv" would be a broader rule than the site wrote.
+        if (! $this->truncated && $offset < strlen($buffer)) {
             yield ++$number => rtrim(substr($buffer, $offset), "\r\n");
         }
     }

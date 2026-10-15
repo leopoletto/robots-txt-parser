@@ -474,6 +474,15 @@ $parser = new RobotsTxtParser(new HttpConfiguration(
 ));
 ```
 
+A file cut at `maxBytes` keeps only its complete lines: the fragment after the last line break is
+not parsed, since `Disallow: /private-area` cut to `Disallow: /priv` would be a broader rule than the
+site wrote. A file of exactly `maxBytes` is not truncated. Pass the same limit to the auditor so the
+size check judges against it:
+
+```php
+$report = (new Auditor(maxBytes: 100 * 1024))->audit($response);
+```
+
 ## The agent dataset
 
 User agents are enriched from a bundled dataset of ~1,800 known crawlers, sharded by leading letter

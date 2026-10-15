@@ -74,7 +74,8 @@ final class DocumentParser
         if ($source->truncated()) {
             $records[] = new Issue(
                 0,
-                'Content was truncated at the configured size limit; rules beyond that point were not read',
+                'Content was truncated at the configured size limit; rules beyond that point were not read, '
+                    . 'and the incomplete last line was not parsed',
                 Severity::High,
                 'truncated',
             );

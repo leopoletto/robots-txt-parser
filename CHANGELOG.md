@@ -35,6 +35,11 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   never read, while `error()` stayed null and the response passed as an empty file. It now
   compares with `>`. The `too_many_redirects` and `empty_response` responses set `error()`, like
   `fetch_failed`. An empty 200 body is still a file with no rules, not an error.
+- **Truncation no longer creates rules.** When `maxBytes` cuts a file, the incomplete last line is
+  discarded instead of parsed, so a cut cannot turn a rule into a broader one, and the `truncated`
+  issue says so. A file of exactly `maxBytes` is no longer marked truncated. `FileSizeCheck`
+  judges against the limit the file was read under, given as `new Auditor(maxBytes: …)` (default
+  500 KB, with unchanged wording).
 
 ## v2.0.1 - 2026-10-14
 

@@ -16,6 +16,7 @@ use Leopoletto\RobotsTxtParser\Audit\Check\SitemapCheck;
 use Leopoletto\RobotsTxtParser\Audit\Check\SyntaxCheck;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
 use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
+use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
 use Leopoletto\RobotsTxtParser\Response;
 
 /**
@@ -35,11 +36,16 @@ final class Auditor
 
     /**
      * @param list<AuditCheck>|null $checks Override the default set.
-     * @param SitemapProber|null    $probe  Supply to fetch and validate declared
-     *                                      sitemaps rather than only parsing them.
+     * @param SitemapProber|null    $probe    Supply to fetch and validate declared
+     *                                        sitemaps rather than only parsing them.
+     * @param int                   $maxBytes The size limit the file was read under, the
+     *                                        HttpConfiguration::$maxBytes given to the parser.
      */
-    public function __construct(?array $checks = null, ?SitemapProber $probe = null)
-    {
+    public function __construct(
+        ?array $checks = null,
+        ?SitemapProber $probe = null,
+        int $maxBytes = HttpConfiguration::DEFAULT_MAX_BYTES,
+    ) {
         $this->checks = $checks ?? [
             new BlanketRuleCheck(),
             new CrawlerAccessCheck(),
@@ -50,7 +56,7 @@ final class Auditor
             new DeprecatedDirectiveCheck(),
             new SensitivePathCheck(),
             new PrecedenceCheck(),
-            new FileSizeCheck(),
+            new FileSizeCheck($maxBytes),
         ];
     }
 

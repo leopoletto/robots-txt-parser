@@ -12,17 +12,23 @@ use Leopoletto\RobotsTxtParser\Http\HttpConfiguration;
 use Leopoletto\RobotsTxtParser\Response;
 
 /**
- * Checks the file against the 500 KB ceiling Google enforces.
+ * Checks the file against the size limit it was read under: by default the
+ * 500 KB ceiling Google enforces.
  *
  * Past that point the rest of the file is not read at all, so the rules most
  * likely to be dropped are the ones added most recently.
  */
 final class FileSizeCheck implements AuditCheck
 {
-    private const LIMIT = HttpConfiguration::DEFAULT_MAX_BYTES;
-
     /** Point at which a file is close enough to the ceiling to mention. */
     private const CROWDED = 0.5;
+
+    /**
+     * @param int $limit The HttpConfiguration::$maxBytes the file was read under.
+     */
+    public function __construct(private readonly int $limit = HttpConfiguration::DEFAULT_MAX_BYTES)
+    {
+    }
 
     public function run(Response $response): array
     {
@@ -32,14 +38,18 @@ final class FileSizeCheck implements AuditCheck
         }
 
         $readable = $this->format($size);
+        $limit = $this->limit % 1024 === 0 ? intdiv($this->limit, 1024) . ' KB' : $this->format($this->limit);
+        $isGoogleLimit = $this->limit === HttpConfiguration::DEFAULT_MAX_BYTES;
 
-        if ($response->truncated() || $size >= self::LIMIT) {
+        if ($response->truncated() || $size >= $this->limit) {
             return [new Finding(
                 id: 'size-over-limit',
-                title: "The file exceeds the 500 KB crawl limit ({$readable})",
+                title: "The file exceeds the {$limit} crawl limit ({$readable})",
                 status: Status::Critical,
                 category: Category::CrawlerAccess,
-                summary: 'Google reads at most 500 KB of a robots.txt and ignores everything after it.',
+                summary: $isGoogleLimit
+                    ? 'Google reads at most 500 KB of a robots.txt and ignores everything after it.'
+                    : "This analysis reads at most {$limit} of a robots.txt and ignored everything after it.",
                 impact: 'Rules beyond the cut-off are never applied. Because new rules are usually '
                     . 'appended, the ones being dropped are typically the most recent — and the '
                     . 'file gives no indication that anything was lost.',
@@ -50,13 +60,15 @@ final class FileSizeCheck implements AuditCheck
             )];
         }
 
-        if ($size >= self::LIMIT * self::CROWDED) {
+        if ($size >= $this->limit * self::CROWDED) {
             return [new Finding(
                 id: 'size-approaching-limit',
                 title: "The file is {$readable}, over half the crawl limit",
                 status: Status::Notice,
                 category: Category::CrawlerAccess,
-                summary: 'Google stops reading a robots.txt at 500 KB.',
+                summary: $isGoogleLimit
+                    ? 'Google stops reading a robots.txt at 500 KB.'
+                    : "This analysis stops reading a robots.txt at {$limit}.",
                 impact: 'There is still headroom, but a file this size is usually repeating the same '
                     . 'rules across many user-agent groups, which is hard to keep consistent.',
                 fix: 'Where several agents share a rule set, declare them as consecutive User-agent '
@@ -69,7 +81,7 @@ final class FileSizeCheck implements AuditCheck
             title: "File size is {$readable}",
             status: Status::Pass,
             category: Category::CrawlerAccess,
-            summary: 'Comfortably within the 500 KB that crawlers will read.',
+            summary: "Comfortably within the {$limit} that crawlers will read.",
             impact: 'The whole file is read, so every rule in it applies.',
         )];
     }
