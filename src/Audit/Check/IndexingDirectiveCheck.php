@@ -9,6 +9,8 @@ use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
 use Leopoletto\RobotsTxtParser\Audit\Status;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Http\PageProbeResult;
+use Leopoletto\RobotsTxtParser\Http\RobotsUrl;
 use Leopoletto\RobotsTxtParser\Response;
 
 /**
@@ -48,6 +50,25 @@ final class IndexingDirectiveCheck implements AuditCheck
                 evidence: $decision->rule !== null
                     ? [new Evidence("Disallow: {$decision->rule->value}", $decision->rule->line)]
                     : [],
+            )];
+        }
+
+        $probe = $response->pageProbe();
+        $url = $response->requestedUrl();
+
+        // A page that answered with an error, timed out, or was never asked
+        // for says nothing about its directives, so its silence is not a pass.
+        if (($probe !== null && ! $probe->observed()) || ($probe === null && $decision === null && ! RobotsUrl::isRobotsTxt($url))) {
+            return [new Finding(
+                id: 'indexing-not-observed',
+                title: 'Page directives were not checked',
+                status: Status::NotChecked,
+                category: Category::Indexing,
+                summary: self::whyNotObserved($probe) . ', so its meta robots tags and X-Robots-Tag headers '
+                    . 'were not read.',
+                impact: 'Nothing is known about whether this page asks to be kept out of search results. '
+                    . 'Its absence of directives here proves nothing either way.',
+                fix: 'Analyse the page again once it answers normally to our bot.',
             )];
         }
 
@@ -128,5 +149,14 @@ final class IndexingDirectiveCheck implements AuditCheck
             impact: 'The page is crawlable and indexable, and its directives agree.',
             evidence: $evidence,
         )];
+    }
+
+    private static function whyNotObserved(?PageProbeResult $probe): string
+    {
+        return match (true) {
+            $probe === null => 'The page was not requested',
+            $probe->error !== null => "The request for the page failed ({$probe->error})",
+            default => "The page answered HTTP {$probe->statusCode}",
+        };
     }
 }

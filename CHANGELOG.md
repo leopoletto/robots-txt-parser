@@ -15,6 +15,13 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   finding whose input was never observed. A consumer that matches every `Status` case without
   a default arm must add it. It weighs 0, is not actionable, is ignored by `Report::worst()`,
   and `Report::counts()` gains a `not_checked` key.
+- **A page that was not read is not checked.** `PageProbeResult::observed()` is true only for a
+  2xx whose body arrived whole. `IndexingDirectiveCheck` reports `indexing-not-observed`
+  (`NotChecked`) for a 4xx, a 5xx, a timeout or a body that fails partway, where it used to pass
+  with "No indexing directives on the requested page". `X-Robots-Tag` is no longer read from a
+  non-2xx page response, and a mid-body failure is an error rather than the partial HTML.
+  `PageProbeResult::$truncated` records a head cut off by `maxHtmlBytes`. Stored results without
+  the new fields read back as observed only when they were a clean 2xx.
 
 ## v2.0.1 - 2026-10-14
 

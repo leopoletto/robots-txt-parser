@@ -34,31 +34,49 @@ final class PageInspector implements PageProber
             return new PageProbeResult($url, $fetch->statusCode, error: $fetch->error);
         }
 
-        $metaTags = [];
-
-        if ($fetch->isOk()) {
-            foreach ($this->meta->extract($this->readHead($fetch)) as $tag) {
-                $metaTags[] = ['name' => $tag->name, 'content' => $tag->raw];
-            }
+        // An error page's headers are the error page's, not the page's own
+        // directives, so nothing is read from a response that is not 2xx.
+        if (! $fetch->isOk()) {
+            return new PageProbeResult($url, $fetch->statusCode);
         }
 
-        return new PageProbeResult($url, $fetch->statusCode, $fetch->header('X-Robots-Tag'), $metaTags);
+        [$html, $truncated, $error] = $this->readHead($fetch);
+
+        if ($error !== null) {
+            return new PageProbeResult($url, $fetch->statusCode, error: $error);
+        }
+
+        $metaTags = [];
+
+        foreach ($this->meta->extract($html) as $tag) {
+            $metaTags[] = ['name' => $tag->name, 'content' => $tag->raw];
+        }
+
+        return new PageProbeResult($url, $fetch->statusCode, $fetch->header('X-Robots-Tag'), $metaTags, truncated: $truncated);
     }
 
     /**
      * Read enough of the response to cover <head>, then stop.
      *
      * Reading stops early once </head> arrives, so a large page costs only the
-     * bytes before it rather than the configured ceiling.
+     * bytes before it rather than the configured ceiling. A body that fails
+     * partway yields an error rather than the part that arrived: a head cut off
+     * by a dropped connection would look like a page without directives.
+     *
+     * @return array{0: string, 1: bool, 2: string|null} The HTML read, whether the
+     *                                                   size limit cut it before </head>,
+     *                                                   and why reading failed, if it did.
      */
-    private function readHead(FetchResult $fetch): string
+    private function readHead(FetchResult $fetch): array
     {
         $body = $fetch->body();
         if ($body === null) {
-            return '';
+            return ['', false, null];
         }
 
         $html = '';
+        $headClosed = false;
+        $error = null;
 
         try {
             while (! $body->eof() && strlen($html) < $this->config->maxHtmlBytes) {
@@ -70,11 +88,13 @@ final class PageInspector implements PageProber
                 $html .= $chunk;
 
                 if (stripos($html, '</head>') !== false) {
+                    $headClosed = true;
+
                     break;
                 }
             }
-        } catch (Throwable) {
-            // A body that stops mid-read still yields whatever arrived.
+        } catch (Throwable $e) {
+            $error = 'The page stopped responding partway through: ' . $e->getMessage();
         } finally {
             try {
                 $body->close();
@@ -83,6 +103,8 @@ final class PageInspector implements PageProber
             }
         }
 
-        return $html;
+        $truncated = ! $headClosed && strlen($html) >= $this->config->maxHtmlBytes;
+
+        return [$html, $truncated, $error];
     }
 }

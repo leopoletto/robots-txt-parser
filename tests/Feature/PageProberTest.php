@@ -92,6 +92,7 @@ final class PageProberTest extends TestCase
                 ['name' => 'googlebot', 'content' => 'index, noindex'],
             ],
             'error' => null,
+            'truncated' => false,
         ], $probe?->toArray());
     }
 

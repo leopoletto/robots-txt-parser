@@ -419,6 +419,16 @@ $response->pageDecision()->allowed;  // false
 $response->pageDecision()->rule;     // the rule that blocked it
 ```
 
+**A page that was not read is not audited.** Directives are read only from a page that answered
+2xx and whose body arrived whole. A 4xx or 5xx, a timeout, or a body that fails partway leaves the
+probe unobserved: nothing is read from it, not even its `X-Robots-Tag` headers, and the audit
+reports `indexing-not-observed` as `NotChecked` instead of passing on a page it never saw.
+
+```php
+$response->pageProbe()->observed();  // false for a 403, a 5xx or a timeout
+$response->pageProbe()->truncated;   // true when maxHtmlBytes cut the head before </head>
+```
+
 ### HTTP metadata
 
 ```php

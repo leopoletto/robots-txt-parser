@@ -29,7 +29,21 @@ final readonly class PageProbeResult
         public array $headers = [],
         public array $metaTags = [],
         public ?string $error = null,
+        /** Whether reading stopped at the size limit before </head> arrived. */
+        public bool $truncated = false,
     ) {
+    }
+
+    /**
+     * Whether the page itself was actually read: it answered 2xx and its body
+     * arrived without failing partway. Only then do its directives, or the
+     * absence of any, say something about the page.
+     */
+    public function observed(): bool
+    {
+        return $this->error === null
+            && $this->statusCode !== null
+            && $this->statusCode >= 200 && $this->statusCode < 300;
     }
 
     /**
@@ -53,7 +67,7 @@ final readonly class PageProbeResult
     }
 
     /**
-     * @return array{url: string, statusCode: int|null, headers: list<string>, metaTags: list<array{name: string, content: string}>, error: string|null}
+     * @return array{url: string, statusCode: int|null, headers: list<string>, metaTags: list<array{name: string, content: string}>, error: string|null, truncated: bool}
      */
     public function toArray(): array
     {
@@ -63,11 +77,14 @@ final readonly class PageProbeResult
             'headers' => $this->headers,
             'metaTags' => $this->metaTags,
             'error' => $this->error,
+            'truncated' => $this->truncated,
         ];
     }
 
     /**
-     * @param array<string, mixed> $data The output of toArray().
+     * @param array<string, mixed> $data The output of toArray(). Fields added since a
+     *                                   result was stored take their defaults, so a stored
+     *                                   clean 2xx reads back as observed and anything else not.
      */
     public static function fromArray(array $data): self
     {
@@ -89,6 +106,7 @@ final readonly class PageProbeResult
             headers: $headers,
             metaTags: $metaTags,
             error: isset($data['error']) ? (string) $data['error'] : null,
+            truncated: (bool) ($data['truncated'] ?? false),
         );
     }
 }
