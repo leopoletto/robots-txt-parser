@@ -2,14 +2,14 @@
 
 All notable changes to `robots-txt-parser` will be documented in this file.
 
-## Planned for 2.1
+## Planned for 2.2
 
 - **Directive config check**, replacing `DeprecatedDirectiveCheck`. That check's verdict on
   `Crawl-delay` is wrong as it stands: it says crawlers ignore the directive, and Bing
   honours it.
 - **Unknown-directive config and scoring change.**
 
-## v2.1.0 - Unreleased
+## v2.1.0 - 2026-10-15
 
 - **Breaking for exhaustive `match`: `Status::NotChecked`.** A new case, `not_checked`, for a
   finding whose input was never observed. A consumer that matches every `Status` case without
