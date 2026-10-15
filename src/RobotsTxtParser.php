@@ -168,36 +168,35 @@ final class RobotsTxtParser
             );
         }
 
+        // Guzzle throws past the limit, so this is a guard rather than a path
+        // taken in practice. Either way no body was read, so it is an error:
+        // an empty document here would pass for a file with no rules.
         if ($fetch->exceededRedirectLimit($this->config->maxRedirects)) {
+            $reason = "Redirect chain exceeds the {$this->config->maxRedirects} redirect limit";
+
             return new Response(
-                document: new Document([new Issue(
-                    0,
-                    "Redirect chain exceeds the {$this->config->maxRedirects} redirect limit",
-                    Severity::High,
-                    'too_many_redirects',
-                )], []),
+                document: new Document([new Issue(0, $reason, Severity::High, 'too_many_redirects')], []),
                 requestedUrl: $url,
                 robotsUrl: $robotsUrl,
                 finalUrl: $fetch->finalUrl,
                 redirects: $fetch->redirects,
                 statusCode: $fetch->statusCode,
+                error: $reason,
             );
         }
 
         $body = $fetch->body();
         if ($body === null) {
+            $reason = "Response from {$robotsUrl} carried no body";
+
             return new Response(
-                document: new Document([new Issue(
-                    0,
-                    "Response from {$robotsUrl} carried no body",
-                    Severity::High,
-                    'empty_response',
-                )], []),
+                document: new Document([new Issue(0, $reason, Severity::High, 'empty_response')], []),
                 requestedUrl: $url,
                 robotsUrl: $robotsUrl,
                 finalUrl: $fetch->finalUrl,
                 redirects: $fetch->redirects,
                 statusCode: $fetch->statusCode,
+                error: $reason,
             );
         }
 

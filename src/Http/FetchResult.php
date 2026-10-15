@@ -61,8 +61,12 @@ final readonly class FetchResult
         return $this->response?->getBody();
     }
 
+    /**
+     * Whether the chain went past the limit. Reaching it exactly is allowed:
+     * a limit of five means five hops are followed.
+     */
     public function exceededRedirectLimit(int $max): bool
     {
-        return count($this->redirects) >= $max;
+        return count($this->redirects) > $max;
     }
 }

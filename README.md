@@ -368,6 +368,9 @@ so a reader can account for all of them.
 | `truncated` | The document exceeded the size limit |
 | `page_disallowed` | The page was not fetched because robots.txt forbade it |
 
+`fetch_failed`, `too_many_redirects` and `empty_response` mean no body was read, and each sets
+`$response->error()`, so a response with no error always carries a file that was actually read.
+
 Note the split. A `page_disallowed` note says nothing about whether the file is correct, so counting
 it as an error would report a fault against a valid document.
 

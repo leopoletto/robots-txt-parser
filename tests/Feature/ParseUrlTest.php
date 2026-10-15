@@ -238,6 +238,63 @@ final class ParseUrlTest extends TestCase
     }
 
     #[Test]
+    public function it_follows_a_chain_of_exactly_the_redirect_limit(): void
+    {
+        $response = $this->parse('https://example.com/robots.txt', [
+            ...$this->redirects(5),
+            new PsrResponse(200, [], "User-agent: *\nDisallow: /private\n"),
+        ]);
+
+        $this->assertNull($response->error());
+        $this->assertSame(200, $response->statusCode());
+        $this->assertCount(5, $response->redirects());
+        $this->assertFalse($response->isAllowed('TestBot', '/private'));
+    }
+
+    #[Test]
+    public function a_chain_past_the_redirect_limit_is_a_failed_fetch(): void
+    {
+        $response = $this->parse('https://example.com/robots.txt', [
+            ...$this->redirects(6),
+            new PsrResponse(200, [], "User-agent: *\nDisallow: /private\n"),
+        ]);
+
+        $this->assertNotNull($response->error());
+        $this->assertSame(['fetch_failed'], array_map(
+            static fn (Issue $issue): string => $issue->type,
+            $response->records()->issues(),
+        ));
+    }
+
+    #[Test]
+    public function an_empty_robots_txt_is_a_file_with_no_rules_not_a_failure(): void
+    {
+        // RFC 9309: an empty file has no rules, so every path is allowed.
+        $response = $this->parse('https://example.com/page', [
+            new PsrResponse(200, [], ''),
+            new PsrResponse(200, [], '<html><head></head></html>'),
+        ]);
+
+        $this->assertNull($response->error());
+        $this->assertSame([], $response->records()->groups());
+        $this->assertCount(2, $this->requests);
+    }
+
+    /**
+     * @return list<PsrResponse>
+     */
+    private function redirects(int $count): array
+    {
+        $hops = [];
+
+        for ($hop = 1; $hop <= $count; $hop++) {
+            $hops[] = new PsrResponse(301, ['Location' => "https://example.com/robots-{$hop}.txt"]);
+        }
+
+        return $hops;
+    }
+
+    #[Test]
     public function it_stops_reading_robots_txt_at_the_size_limit(): void
     {
         $body = "User-agent: *\nDisallow: /a\n" . str_repeat("Disallow: /padding\n", 500);

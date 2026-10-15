@@ -30,6 +30,11 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   `<script>` and `<noscript>`, so a commented-out `noindex` no longer counts. A page whose read
   ends partway through a `<meta>` tag is recorded as truncated instead of losing the tag silently
   (`MetaTagExtractor::endsInsideTag()`).
+- **A chain of exactly `maxRedirects` hops is followed.** `FetchResult::exceededRedirectLimit()`
+  compared with `>=`, so a legitimate five-hop chain was flagged `too_many_redirects` and its body
+  never read, while `error()` stayed null and the response passed as an empty file. It now
+  compares with `>`. The `too_many_redirects` and `empty_response` responses set `error()`, like
+  `fetch_failed`. An empty 200 body is still a file with no rules, not an error.
 
 ## v2.0.1 - 2026-10-14
 
