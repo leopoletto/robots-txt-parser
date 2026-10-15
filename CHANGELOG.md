@@ -22,6 +22,10 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   non-2xx page response, and a mid-body failure is an error rather than the partial HTML.
   `PageProbeResult::$truncated` records a head cut off by `maxHtmlBytes`. Stored results without
   the new fields read back as observed only when they were a clean 2xx.
+- **Bot challenges are not read as the page.** `ChallengeDetector` recognises a challenge or
+  block page by markers specific to Cloudflare, Akamai, HUMAN and DataDome. Such a page sets
+  `PageProbeResult::$challenge`, is not observed, and contributes no directives, so a
+  challenge's own `noindex` is no longer reported as the site's.
 
 ## v2.0.1 - 2026-10-14
 

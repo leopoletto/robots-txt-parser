@@ -31,17 +31,20 @@ final readonly class PageProbeResult
         public ?string $error = null,
         /** Whether reading stopped at the size limit before </head> arrived. */
         public bool $truncated = false,
+        /** Whether a bot challenge or block page answered instead of the page. */
+        public bool $challenge = false,
     ) {
     }
 
     /**
-     * Whether the page itself was actually read: it answered 2xx and its body
-     * arrived without failing partway. Only then do its directives, or the
-     * absence of any, say something about the page.
+     * Whether the page itself was actually read: it answered 2xx, its body
+     * arrived without failing partway, and it was not a bot challenge. Only
+     * then do its directives, or the absence of any, say something about it.
      */
     public function observed(): bool
     {
         return $this->error === null
+            && ! $this->challenge
             && $this->statusCode !== null
             && $this->statusCode >= 200 && $this->statusCode < 300;
     }
@@ -67,7 +70,7 @@ final readonly class PageProbeResult
     }
 
     /**
-     * @return array{url: string, statusCode: int|null, headers: list<string>, metaTags: list<array{name: string, content: string}>, error: string|null, truncated: bool}
+     * @return array{url: string, statusCode: int|null, headers: list<string>, metaTags: list<array{name: string, content: string}>, error: string|null, truncated: bool, challenge: bool}
      */
     public function toArray(): array
     {
@@ -78,6 +81,7 @@ final readonly class PageProbeResult
             'metaTags' => $this->metaTags,
             'error' => $this->error,
             'truncated' => $this->truncated,
+            'challenge' => $this->challenge,
         ];
     }
 
@@ -107,6 +111,7 @@ final readonly class PageProbeResult
             metaTags: $metaTags,
             error: isset($data['error']) ? (string) $data['error'] : null,
             truncated: (bool) ($data['truncated'] ?? false),
+            challenge: (bool) ($data['challenge'] ?? false),
         );
     }
 }

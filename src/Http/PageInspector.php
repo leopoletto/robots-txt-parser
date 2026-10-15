@@ -23,6 +23,7 @@ final class PageInspector implements PageProber
         private readonly string $userAgent,
         private readonly HttpConfiguration $config = new HttpConfiguration(),
         private readonly MetaTagExtractor $meta = new MetaTagExtractor(),
+        private readonly ChallengeDetector $challenges = new ChallengeDetector(),
     ) {
     }
 
@@ -37,13 +38,18 @@ final class PageInspector implements PageProber
         // An error page's headers are the error page's, not the page's own
         // directives, so nothing is read from a response that is not 2xx.
         if (! $fetch->isOk()) {
-            return new PageProbeResult($url, $fetch->statusCode);
+            return new PageProbeResult($url, $fetch->statusCode, challenge: $this->challenges->inHeaders($fetch));
         }
 
         [$html, $truncated, $error] = $this->readHead($fetch);
 
         if ($error !== null) {
             return new PageProbeResult($url, $fetch->statusCode, error: $error);
+        }
+
+        // The challenge's own noindex is not the page's, so nothing is read.
+        if ($this->challenges->isChallenge($fetch, $html)) {
+            return new PageProbeResult($url, $fetch->statusCode, challenge: true);
         }
 
         $metaTags = [];

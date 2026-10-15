@@ -155,6 +155,7 @@ final class IndexingDirectiveCheck implements AuditCheck
     {
         return match (true) {
             $probe === null => 'The page was not requested',
+            $probe->challenge => "The page answered HTTP {$probe->statusCode} with a bot challenge instead of its content",
             $probe->error !== null => "The request for the page failed ({$probe->error})",
             default => "The page answered HTTP {$probe->statusCode}",
         };

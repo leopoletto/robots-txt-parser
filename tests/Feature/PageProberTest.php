@@ -93,6 +93,7 @@ final class PageProberTest extends TestCase
             ],
             'error' => null,
             'truncated' => false,
+            'challenge' => false,
         ], $probe?->toArray());
     }
 

@@ -427,7 +427,12 @@ reports `indexing-not-observed` as `NotChecked` instead of passing on a page it 
 ```php
 $response->pageProbe()->observed();  // false for a 403, a 5xx or a timeout
 $response->pageProbe()->truncated;   // true when maxHtmlBytes cut the head before </head>
+$response->pageProbe()->challenge;   // true when a bot challenge answered instead of the page
 ```
+
+A bot challenge or block page (Cloudflare, Akamai, HUMAN, DataDome) answered in place of the page
+is recognised by markers only those pages carry, and is not read: its own `noindex` is not the
+site's. A CDN's name alone is never taken as a challenge.
 
 ### HTTP metadata
 
