@@ -629,13 +629,12 @@ composer format      # php-cs-fixer
 composer quality     # all three
 ```
 
-## Upgrading from 2.x
+## Migrating from wizardcompass/robots-txt-parser
 
-Version 3 is a rewrite with a different public API. See [CHANGELOG.md](CHANGELOG.md) for the full
-migration guide.
-
-`wizardcompass/robots-txt-parser` is retired in favour of this package. Its 2.0.0 release is a
-compatibility layer that delegates here, so existing installs keep working while they migrate.
+`wizardcompass/robots-txt-parser` is retired in favour of this package, which has a different public
+API. Its 2.0.0 release is a compatibility layer that delegates here, so existing installs keep
+working while they migrate. Changes between releases of this package are listed in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Credits
 
