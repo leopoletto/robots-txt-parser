@@ -7,8 +7,10 @@ namespace Leopoletto\RobotsTxtParser\Audit\Check;
 use Leopoletto\RobotsTxtParser\Audit\Category;
 use Leopoletto\RobotsTxtParser\Audit\Evidence;
 use Leopoletto\RobotsTxtParser\Audit\Finding;
+use Leopoletto\RobotsTxtParser\Audit\SitemapOutcome;
 use Leopoletto\RobotsTxtParser\Audit\Status;
 use Leopoletto\RobotsTxtParser\Contract\AuditCheck;
+use Leopoletto\RobotsTxtParser\Contract\OriginScopedSitemapProber;
 use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
 use Leopoletto\RobotsTxtParser\Record\Sitemap;
 use Leopoletto\RobotsTxtParser\Response;
@@ -84,7 +86,7 @@ final class SitemapCheck implements AuditCheck
 
         // Live validation only runs when a probe was supplied.
         if ($this->probe !== null) {
-            $findings = [...$findings, ...$this->probeFindings($sitemaps)];
+            $findings = [...$findings, ...$this->probeFindings($response, $sitemaps)];
         }
 
         if ($findings === []) {
@@ -118,6 +120,9 @@ final class SitemapCheck implements AuditCheck
                 continue;
             }
 
+            // Asked as Googlebot on purpose: the question is whether search
+            // engines can read the sitemap the file points them at, not
+            // whether our own bot may. Our bot's access is the prober's concern.
             $decision = $response->document()->decide('Googlebot', $sitemap->url);
             if ($decision->allowed) {
                 continue;
@@ -136,40 +141,45 @@ final class SitemapCheck implements AuditCheck
     }
 
     /**
+     * Sort what the prober found into answers worth judging and sitemaps that
+     * were never seen. Only a real error status counts as unreachable; a
+     * sitemap blocked, skipped, timed out or failed without an answer says
+     * nothing about itself and is reported as not checked.
+     *
      * @param list<Sitemap> $sitemaps
      * @return list<Finding>
      */
-    private function probeFindings(array $sitemaps): array
+    private function probeFindings(Response $response, array $sitemaps): array
     {
+        $probe = $this->probe;
+        $robotsUrl = $response->robotsUrl();
+
+        if ($probe instanceof OriginScopedSitemapProber && $robotsUrl !== null) {
+            $probe = $probe->forOrigin($robotsUrl);
+        }
+
         $unreachable = [];
         $notXml = [];
+        $notChecked = [];
 
         foreach ($sitemaps as $sitemap) {
             if (! $sitemap->valid) {
                 continue;
             }
 
-            $result = $this->probe?->probe($sitemap->url);
+            $result = $probe?->probe($sitemap->url);
             if ($result === null) {
                 continue;
             }
 
-            if (! $result->reachable) {
-                $unreachable[] = new Evidence(
-                    text: $sitemap->url,
-                    line: $sitemap->line,
-                    detail: $result->describe(),
-                );
+            $evidence = new Evidence(text: $sitemap->url, line: $sitemap->line, detail: $result->describe());
 
-                continue;
-            }
-
-            if (! $result->looksLikeXml) {
-                $notXml[] = new Evidence(
-                    text: $sitemap->url,
-                    line: $sitemap->line,
-                    detail: $result->describe(),
-                );
+            if ($result->isNotChecked()) {
+                $notChecked[] = $evidence;
+            } elseif ($result->outcome === SitemapOutcome::HttpError) {
+                $unreachable[] = $evidence;
+            } elseif (! $result->looksLikeXml) {
+                $notXml[] = $evidence;
             }
         }
 
@@ -202,6 +212,19 @@ final class SitemapCheck implements AuditCheck
                 fix: 'Confirm the URL serves XML beginning with <urlset> or <sitemapindex>, and that '
                     . 'it is served as application/xml or text/xml.',
                 evidence: $notXml,
+            );
+        }
+
+        if ($notChecked !== []) {
+            $findings[] = new Finding(
+                id: 'sitemap-not-checked',
+                title: sprintf('%d declared sitemap%s not checked', count($notChecked), count($notChecked) === 1 ? ' was' : 's were'),
+                status: Status::NotChecked,
+                category: Category::Discovery,
+                summary: 'These sitemaps were not seen: each was blocked for our bot, left out by a limit, '
+                    . 'or did not answer in time. Each line says which.',
+                impact: 'Nothing is known about whether they work. They are not counted against the file.',
+                evidence: $notChecked,
             );
         }
 

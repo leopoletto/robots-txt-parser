@@ -48,6 +48,19 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   `HttpConfiguration::$connectTimeout` (default 5) is sent as `connect_timeout`; Guzzle's stream
   handler ignores that option, so with the default client the connection stays bounded by the
   request timeout. `RobotsFetcher` and `SitemapProbe` accept a clock for testing.
+- **Sitemaps that were not seen are not checked.** `SitemapProbeResult` gains a `SitemapOutcome`
+  (`observed`, `http_error`, `blocked`, `skipped`, `timeout`, `error`) and a `reason`, with
+  `blocked()` and `skipped()` constructors. Only a 4xx or 5xx answer is `sitemap-unreachable`; a
+  timeout or a failed request used to be that Critical finding and is now listed under
+  `sitemap-not-checked` (`NotChecked`) with blocked and skipped sitemaps. A result stored without
+  an outcome gets the one its fields imply; one with no status and no error, the stand-in for a
+  sitemap left unfetched, reads back as `skipped`. Stored scores that counted a timeout as
+  unreachable change when audited again.
+- **Sitemaps on another origin need a decision.** `SitemapProbe` implements the new
+  `Contract\OriginScopedSitemapProber`, which the audit scopes to the robots.txt's origin. A
+  sitemap on another origin is fetched only when the `decideElsewhere` closure says that origin's
+  robots.txt allows it, is `blocked` when it says not, and is `skipped` without one. The package
+  never fetches another origin's robots.txt.
 
 ## v2.0.1 - 2026-10-14
 

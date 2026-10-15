@@ -277,6 +277,25 @@ $auditor = new Auditor(probe: new SitemapProbe(
 
 Without a probe the sitemap checks still run; they just do not make requests.
 
+Each result carries a `SitemapOutcome`. Only an answer is judged: a 4xx or 5xx is
+`sitemap-unreachable`, and a 2xx that does not open as XML is `sitemap-not-xml`. A sitemap that was
+not seen — `blocked` for your bot, `skipped` by a limit, a `timeout`, or an `error` with no answer —
+is listed under one `sitemap-not-checked` finding (`NotChecked`), with the reason for each, and is
+not held against the file. `SitemapProbeResult::blocked()` and `::skipped()` build those results.
+
+A robots.txt speaks only for its own origin, so `SitemapProbe` does not fetch a sitemap on another
+origin unless told whether that origin's robots.txt allows it. The package never fetches another
+origin's robots.txt itself; pass a decision:
+
+```php
+$probe = new SitemapProbe($client, $userAgent, decideElsewhere: function (string $sitemapUrl): ?bool {
+    return $myOtherOriginCheck($sitemapUrl); // true: fetch, false: blocked, null: could not tell
+});
+```
+
+Without one, such a sitemap is skipped as "on a different origin". The audit scopes any prober
+implementing `Contract\OriginScopedSitemapProber` to the origin of the response's robots.txt.
+
 The auditor takes any `Contract\SitemapProber`; `SitemapProbe` is the one that makes requests. To
 audit a stored file again without the network, keep what the probe found and answer from it:
 `SitemapProbeResult::toArray()` writes a result out and `SitemapProbeResult::fromArray()` reads it back.

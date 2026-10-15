@@ -8,8 +8,9 @@ use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
-use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
+use Leopoletto\RobotsTxtParser\Contract\OriginScopedSitemapProber;
 use Leopoletto\RobotsTxtParser\Http\DeadlineStream;
+use Leopoletto\RobotsTxtParser\Http\RobotsUrl;
 use Throwable;
 
 /**
@@ -18,7 +19,7 @@ use Throwable;
  * Only the opening bytes are read: enough to see a <urlset> or <sitemapindex>
  * root element, never the whole file, which for a large site can be megabytes.
  */
-final class SitemapProbe implements SitemapProber
+final class SitemapProbe implements OriginScopedSitemapProber
 {
     private const PREVIEW_BYTES = 2048;
 
@@ -29,6 +30,12 @@ final class SitemapProbe implements SitemapProber
      * @param int                     $timeout        Seconds for the whole request, body included.
      * @param int                     $connectTimeout Seconds to connect, where the client honours it.
      * @param (Closure(): float)|null $clock          The current time in seconds; the system clock by default.
+     * @param (Closure(string): ?bool)|null $decideElsewhere Whether our bot may fetch a sitemap on another
+     *                                                      origin than the robots.txt's, by that origin's
+     *                                                      own robots.txt: true to fetch, false when it
+     *                                                      forbids it, null when it could not be told.
+     *                                                      Without one, such a sitemap is skipped.
+     * @param string|null             $origin         The robots.txt URL this probe is scoped to; see forOrigin().
      */
     public function __construct(
         private readonly Client $client,
@@ -36,12 +43,44 @@ final class SitemapProbe implements SitemapProber
         private readonly int $timeout = 8,
         private readonly int $connectTimeout = 5,
         ?Closure $clock = null,
+        private readonly ?Closure $decideElsewhere = null,
+        private readonly ?string $origin = null,
     ) {
         $this->clock = $clock ?? static fn (): float => microtime(true);
     }
 
+    /**
+     * This probe, for the sitemaps the robots.txt at the given URL declares.
+     * The robots.txt of another origin is never fetched here: whether such a
+     * sitemap may be fetched is for $decideElsewhere to say.
+     */
+    public function forOrigin(string $robotsUrl): self
+    {
+        return new self(
+            $this->client,
+            $this->userAgent,
+            $this->timeout,
+            $this->connectTimeout,
+            $this->clock,
+            $this->decideElsewhere,
+            RobotsUrl::forOrigin($robotsUrl),
+        );
+    }
+
     public function probe(string $url): SitemapProbeResult
     {
+        if ($this->origin !== null && strcasecmp(RobotsUrl::forOrigin($url), $this->origin) !== 0) {
+            $decision = $this->decideElsewhere !== null ? ($this->decideElsewhere)($url) : null;
+
+            if ($decision === null) {
+                return SitemapProbeResult::skipped($url, "it is on a different origin, whose robots.txt was not checked");
+            }
+
+            if ($decision === false) {
+                return SitemapProbeResult::blocked($url, "the robots.txt of its own origin disallows it for our bot");
+            }
+        }
+
         $startedAt = ($this->clock)();
 
         try {
