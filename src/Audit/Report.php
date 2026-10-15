@@ -90,6 +90,7 @@ final readonly class Report
             Status::Notice->value => 0,
             Status::Info->value => 0,
             Status::Pass->value => 0,
+            Status::NotChecked->value => 0,
         ];
 
         foreach ($this->findings as $finding) {

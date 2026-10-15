@@ -30,6 +30,13 @@ enum Status: string
     /** Cannot be what anyone intended. */
     case Critical = 'critical';
 
+    /**
+     * The input was never observed: a page that answered with an error, a
+     * sitemap blocked for our bot, a request that timed out. Nothing is
+     * claimed either way, and the finding's summary says why.
+     */
+    case NotChecked = 'not_checked';
+
     public function weight(): int
     {
         return match ($this) {
@@ -37,7 +44,7 @@ enum Status: string
             self::Warning => 3,
             self::Notice => 2,
             self::Info => 1,
-            self::Pass => 0,
+            self::Pass, self::NotChecked => 0,
         };
     }
 
@@ -48,7 +55,7 @@ enum Status: string
     {
         return match ($this) {
             self::Critical, self::Warning, self::Notice => true,
-            self::Info, self::Pass => false,
+            self::Info, self::Pass, self::NotChecked => false,
         };
     }
 }

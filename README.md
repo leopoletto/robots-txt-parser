@@ -210,8 +210,9 @@ it against their own intent, rather than in a badge that decides for them.
 | `Notice` | Deliberate-looking, with a consequence worth stating | Rules that can never take effect |
 | `Info` | A policy readout, with no judgement | *N of M search engines are blocked* |
 | `Pass` | Nothing to do | |
+| `NotChecked` | The input was never observed, so nothing is claimed; the summary says why | The page answered HTTP 403 |
 
-`Info` and `Pass` are not actionable: `isActionable()` is false for both, `actionable()` omits them,
+`Info`, `Pass` and `NotChecked` are not actionable: `isActionable()` is false for all three, `actionable()` omits them,
 and `worst()` ignores them. So a site that blocks every AI crawler on purpose reports `Pass` overall,
 with the full policy readout still there to read.
 

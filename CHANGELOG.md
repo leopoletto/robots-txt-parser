@@ -9,6 +9,13 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   honours it.
 - **Unknown-directive config and scoring change.**
 
+## v2.1.0 - Unreleased
+
+- **Breaking for exhaustive `match`: `Status::NotChecked`.** A new case, `not_checked`, for a
+  finding whose input was never observed. A consumer that matches every `Status` case without
+  a default arm must add it. It weighs 0, is not actionable, is ignored by `Report::worst()`,
+  and `Report::counts()` gains a `not_checked` key.
+
 ## v2.0.1 - 2026-10-14
 
 - **An unreachable robots.txt blocks the page fetch.** When robots.txt answers with a 5xx or
