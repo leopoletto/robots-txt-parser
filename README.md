@@ -471,8 +471,16 @@ $parser = new RobotsTxtParser(new HttpConfiguration(
     maxRedirects: 5,
     robotsTimeout: 10,
     pageTimeout: 10,
+    connectTimeout: 5,
 ));
 ```
+
+`robotsTimeout` and `pageTimeout` cap each request's total duration, body included, measured from
+when the request starts: a server that sends a byte every few seconds is cut off at the limit
+rather than awaited. A robots.txt cut off that way, or one whose body fails partway, is a failed
+fetch with `error()` set, never parsed as a shorter file. `connectTimeout` is honoured by
+curl-backed clients; Guzzle's stream handler, which serves the streamed requests the default client
+makes, ignores it and bounds the connection by the request timeout instead.
 
 A file cut at `maxBytes` keeps only its complete lines: the fragment after the last line break is
 not parsed, since `Disallow: /private-area` cut to `Disallow: /priv` would be a broader rule than the

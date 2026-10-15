@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Http;
 
+use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
@@ -22,10 +23,19 @@ use Psr\Http\Message\ResponseInterface;
  */
 final class RobotsFetcher
 {
+    /** @var Closure(): float */
+    private readonly Closure $clock;
+
+    /**
+     * @param (Closure(): float)|null $clock The current time in seconds, for the
+     *                                       total-duration cap; the system clock by default.
+     */
     public function __construct(
         private readonly Client $client,
         private readonly HttpConfiguration $config = new HttpConfiguration(),
+        ?Closure $clock = null,
     ) {
+        $this->clock = $clock ?? static fn (): float => microtime(true);
     }
 
     public static function default(HttpConfiguration $config = new HttpConfiguration()): self
@@ -56,13 +66,21 @@ final class RobotsFetcher
         return $this->send($pageUrl, $userAgent, $this->config->pageTimeout, stream: true);
     }
 
+    /**
+     * The timeout covers the whole request, measured from its start: the body
+     * is wrapped so that reading it stops once the time is up, however slowly
+     * the server sends it.
+     */
     private function send(string $url, string $userAgent, int $timeout, bool $stream): FetchResult
     {
+        $startedAt = ($this->clock)();
+
         try {
             $response = $this->client->get($url, [
                 RequestOptions::HEADERS => ['User-Agent' => $userAgent],
                 RequestOptions::STREAM => $stream,
                 RequestOptions::TIMEOUT => $timeout,
+                RequestOptions::CONNECT_TIMEOUT => $this->config->connectTimeout,
                 RequestOptions::ALLOW_REDIRECTS => [
                     'max' => $this->config->maxRedirects,
                     'strict' => true,
@@ -74,6 +92,8 @@ final class RobotsFetcher
         } catch (GuzzleException $e) {
             return FetchResult::failed($url, $e->getMessage());
         }
+
+        $response = $response->withBody(new DeadlineStream($response->getBody(), $startedAt + $timeout, $timeout, $this->clock));
 
         return new FetchResult(
             requestedUrl: $url,

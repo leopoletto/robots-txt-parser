@@ -40,6 +40,14 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   issue says so. A file of exactly `maxBytes` is no longer marked truncated. `FileSizeCheck`
   judges against the limit the file was read under, given as `new Auditor(maxBytes: …)` (default
   500 KB, with unchanged wording).
+- **Timeouts cap the whole request.** With a streamed response, Guzzle's `timeout` bounded each
+  read, so a server trickling bytes could hold a request open indefinitely. Robots.txt, page and
+  sitemap bodies are now read through `DeadlineStream`, which stops at the timeout measured from
+  the request's start. A robots.txt body that times out or fails partway used to escape
+  `parseUrl()` as a `RuntimeException`; it is now a `fetch_failed` response with `error()` set.
+  `HttpConfiguration::$connectTimeout` (default 5) is sent as `connect_timeout`; Guzzle's stream
+  handler ignores that option, so with the default client the connection stays bounded by the
+  request timeout. `RobotsFetcher` and `SitemapProbe` accept a clock for testing.
 
 ## v2.0.1 - 2026-10-14
 

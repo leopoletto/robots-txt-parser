@@ -27,6 +27,13 @@ final readonly class HttpConfiguration
         public int $robotsTimeout = 10,
         public int $pageTimeout = 10,
         public bool $verify = true,
+        /**
+         * Seconds allowed to connect. Honoured by curl-backed clients; Guzzle's
+         * stream handler, which serves the streamed requests this package makes
+         * by default, ignores it and bounds the connection by the request
+         * timeout instead.
+         */
+        public int $connectTimeout = 5,
     ) {
     }
 
@@ -39,6 +46,7 @@ final readonly class HttpConfiguration
             $this->robotsTimeout,
             $this->pageTimeout,
             $this->verify,
+            $this->connectTimeout,
         );
     }
 }

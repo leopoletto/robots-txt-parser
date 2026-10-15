@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Leopoletto\RobotsTxtParser\Audit;
 
+use Closure;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use Leopoletto\RobotsTxtParser\Contract\SitemapProber;
+use Leopoletto\RobotsTxtParser\Http\DeadlineStream;
 use Throwable;
 
 /**
@@ -20,20 +22,34 @@ final class SitemapProbe implements SitemapProber
 {
     private const PREVIEW_BYTES = 2048;
 
+    /** @var Closure(): float */
+    private readonly Closure $clock;
+
+    /**
+     * @param int                     $timeout        Seconds for the whole request, body included.
+     * @param int                     $connectTimeout Seconds to connect, where the client honours it.
+     * @param (Closure(): float)|null $clock          The current time in seconds; the system clock by default.
+     */
     public function __construct(
         private readonly Client $client,
         private readonly string $userAgent,
         private readonly int $timeout = 8,
+        private readonly int $connectTimeout = 5,
+        ?Closure $clock = null,
     ) {
+        $this->clock = $clock ?? static fn (): float => microtime(true);
     }
 
     public function probe(string $url): SitemapProbeResult
     {
+        $startedAt = ($this->clock)();
+
         try {
             $response = $this->client->get($url, [
                 RequestOptions::HEADERS => ['User-Agent' => $this->userAgent],
                 RequestOptions::STREAM => true,
                 RequestOptions::TIMEOUT => $this->timeout,
+                RequestOptions::CONNECT_TIMEOUT => $this->connectTimeout,
                 RequestOptions::HTTP_ERRORS => false,
                 RequestOptions::ALLOW_REDIRECTS => ['max' => 3, 'track_redirects' => true],
             ]);
@@ -45,9 +61,10 @@ final class SitemapProbe implements SitemapProber
         $contentType = $response->getHeaderLine('Content-Type');
 
         $preview = '';
+        $error = null;
 
         try {
-            $body = $response->getBody();
+            $body = new DeadlineStream($response->getBody(), $startedAt + $this->timeout, $this->timeout, $this->clock);
             while (! $body->eof() && strlen($preview) < self::PREVIEW_BYTES) {
                 $chunk = $body->read(self::PREVIEW_BYTES);
                 if ($chunk === '') {
@@ -56,8 +73,9 @@ final class SitemapProbe implements SitemapProber
                 $preview .= $chunk;
             }
             $body->close();
-        } catch (Throwable) {
-            // A truncated read still tells us the status code.
+        } catch (Throwable $e) {
+            // The status code still stands; the body was not seen in full.
+            $error = $e->getMessage();
         }
 
         return new SitemapProbeResult(
@@ -66,6 +84,7 @@ final class SitemapProbe implements SitemapProber
             reachable: $status >= 200 && $status < 300,
             looksLikeXml: self::looksLikeSitemap($preview),
             contentType: $contentType !== '' ? $contentType : null,
+            error: $error,
         );
     }
 

@@ -25,6 +25,7 @@ use Leopoletto\RobotsTxtParser\Record\Issue;
 use Leopoletto\RobotsTxtParser\Source\FileSource;
 use Leopoletto\RobotsTxtParser\Source\StreamSource;
 use Leopoletto\RobotsTxtParser\Source\TextSource;
+use RuntimeException;
 
 /**
  * Parses robots.txt from a URL, a file, or a string.
@@ -201,7 +202,24 @@ final class RobotsTxtParser
         }
 
         $buffer = $this->keepContent ? new ContentBuffer() : null;
-        $document = $this->parser->parse(new StreamSource($body, $this->config->maxBytes), $buffer);
+
+        // A body that stops partway, or runs past the timeout, is not a
+        // shorter file: what arrived is discarded rather than parsed as whole.
+        try {
+            $document = $this->parser->parse(new StreamSource($body, $this->config->maxBytes), $buffer);
+        } catch (RuntimeException $e) {
+            $reason = "{$robotsUrl} stopped responding partway through: {$e->getMessage()}";
+
+            return new Response(
+                document: new Document([new Issue(0, "Could not fetch {$robotsUrl}: {$reason}", Severity::High, 'fetch_failed')], []),
+                requestedUrl: $url,
+                robotsUrl: $robotsUrl,
+                finalUrl: $fetch->finalUrl,
+                redirects: $fetch->redirects,
+                statusCode: $fetch->statusCode,
+                error: $reason,
+            );
+        }
 
         // X-Robots-Tag on the robots.txt response itself.
         $document = $document->withRecords(

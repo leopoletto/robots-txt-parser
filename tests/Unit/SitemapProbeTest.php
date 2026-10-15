@@ -163,4 +163,33 @@ final class SitemapProbeTest extends TestCase
         $this->assertSame($looksLikeXml, $result->looksLikeXml);
         $this->assertSame($statusCode, $result->statusCode);
     }
+
+    #[Test]
+    public function a_trickling_sitemap_stops_at_the_timeout_with_an_error(): void
+    {
+        $now = 0.0;
+        $body = \GuzzleHttp\Psr7\FnStream::decorate(\GuzzleHttp\Psr7\Utils::streamFor(''), [
+            'eof' => static fn (): bool => false,
+            'read' => static function () use (&$now): string {
+                $now += 1.0;
+
+                return ' ';
+            },
+        ]);
+
+        $probe = new SitemapProbe(
+            new Client(['handler' => HandlerStack::create(new MockHandler([new HttpResponse(200, [], $body)]))]),
+            'TestBot/1.0',
+            timeout: 3,
+            clock: static function () use (&$now): float {
+                return $now;
+            },
+        );
+
+        $result = $probe->probe('https://example.com/sitemap.xml');
+
+        $this->assertLessThanOrEqual(4.0, $now);
+        $this->assertStringContainsString('Timed out', (string) $result->error);
+        $this->assertSame(200, $result->statusCode);
+    }
 }
