@@ -9,6 +9,13 @@ All notable changes to `robots-txt-parser` will be documented in this file.
   honours it.
 - **Unknown-directive config and scoring change.**
 
+## v2.1.1 - 2026-10-21
+
+- **A path rule may start with `*`.** `Disallow: */abtest/` no longer raises `invalid_path`.
+  RFC 9309 section 5.1 uses `*.gif$` as an example though the grammar in section 2.2 requires a
+  leading `/` (errata 7995), and Google's parser matches such rules. A path starting with any
+  other character is still reported.
+
 ## v2.1.0 - 2026-10-15
 
 - **Breaking for exhaustive `match`: `Status::NotChecked`.** A new case, `not_checked`, for a

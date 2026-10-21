@@ -51,10 +51,10 @@ final class DirectiveParser implements LineParser
             );
         }
 
-        if ($type->isPathRule() && $token->value !== '' && ! str_starts_with($token->value, '/')) {
+        if ($type->isPathRule() && $token->value !== '' && ! in_array($token->value[0], ['/', '*'], true)) {
             $records[] = new Issue(
                 $token->number,
-                "Path '{$token->value}' should start with '/'",
+                "Path '{$token->value}' should start with '/' or '*'",
                 Severity::Medium,
                 'invalid_path',
             );

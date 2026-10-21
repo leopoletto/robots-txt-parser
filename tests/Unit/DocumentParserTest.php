@@ -181,6 +181,19 @@ final class DocumentParserTest extends TestCase
         $this->assertSame('invalid_path', $document->issues()[0]->type);
     }
 
+    /**
+     * RFC 9309 §5.1 uses `*.gif$` as an example, and Google's parser matches such
+     * rules (errata 7995 proposes allowing the leading `*` in the grammar).
+     */
+    #[Test]
+    public function it_accepts_a_path_that_starts_with_a_wildcard(): void
+    {
+        $document = $this->parse("User-agent: *\nDisallow: */page-template-preview/");
+
+        $this->assertSame([], $document->issues());
+        $this->assertFalse($document->isAllowed('Twitterbot', '/q/page-template-preview/'));
+    }
+
     #[Test]
     public function it_validates_sitemap_urls(): void
     {
